@@ -8,6 +8,7 @@ import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
 import org.bson.types.ObjectId
+import org.mongodb.scala.bson.BsonDocument
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 
 import scala.concurrent.Future
@@ -237,10 +238,10 @@ object Clea {
                         } ~
                         patch {
                           entity(as[String]) {
-                            userSpecJson => {
+                            userUpdateSpecJson => {
                               if (payload.sub.equalsIgnoreCase("admin")) {
-                                val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
-                                complete(new Gson().toJson(UserExposed(UserManagement.updateUser(userSpec))))
+                                val userUpdateDoc = BsonDocument(userUpdateSpecJson)
+                                complete(new Gson().toJson(UserExposed(UserManagement.updateUser(username, userUpdateDoc))))
                               } else
                                 complete(HttpResponse(StatusCodes.Unauthorized))
                             }

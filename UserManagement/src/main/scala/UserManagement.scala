@@ -2,10 +2,12 @@ import java.util.concurrent.TimeUnit
 
 import com.google.gson.Gson
 import com.mongodb.ConnectionString
+import org.mongodb.scala.model.Updates._
 import com.typesafe.config.ConfigFactory
+import org.bson.BsonValue
 import org.bson.conversions.Bson
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonInt32, BsonString, conversions}
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonElement, BsonInt32, BsonString, conversions}
 import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Document, MongoClient, MongoClientSettings, MongoCollection, MongoCredential, Observable}
@@ -129,10 +131,13 @@ object UserManagement {
   def deleteUser(username: String) = {
     usersCollection.deleteOne(equal("username", username)).results()
   }
+  
   // update user
-  def updateUser(userSpec: UserSpec) = {
-    usersCollection.replaceOne(equal("username", userSpec.username), User(userSpec)).results()(0)
-    usersCollection.find(equal("username", userSpec.username)).results()(0)
+  def updateUser(username:String, userUpdateSpec: BsonDocument) = {
+    val updateQuery = new BsonDocument()
+    updateQuery.append("$set", userUpdateSpec)
+    usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
+    usersCollection.find(equal("username", username)).results()(0)
   }
 
   def getUsers(userSearchCriteria: UserSearchCriteria) = {
