@@ -1,5 +1,7 @@
+import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
@@ -11,8 +13,8 @@ import org.bson.types.ObjectId
 import org.mongodb.scala.bson.BsonDocument
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 
-import scala.concurrent.Future
-import scala.io.StdIn
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future, Promise}
 
 /**
   * Created by spectrum on 5/2/2018.
@@ -103,6 +105,9 @@ object Clea {
   val conf = ConfigFactory.load()
   val API_KEY = conf.getString("api_key")
   val secret_key = conf.getString("secret_key")
+
+  val host = conf.getString("app.host")
+  val port = conf.getInt("app.port")
 
   def generateJwt(user: User) = {
     val header = JwtHeader(JwtAlgorithm.HS512, "JWT")
@@ -283,13 +288,21 @@ object Clea {
             }
         }
     }
-    val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 8080)
 
-    logger.info(s"Server online at http://0.0.0.0:8080/\nPress RETURN to stop...")
-    StdIn.readLine
+    val bindingFuture: Future[ServerBinding] = null
 
-    bindingFuture
-      .flatMap(_.unbind())
-      .onComplete(_ => actorSystem.terminate())
+    val f = for { bindingFuture <- Http().bindAndHandle(route, host, port)
+                  waitOnFuture  <- Promise[Done].future
+    }  yield waitOnFuture
+
+    logger.info(s"Server online at http://$host:$port/")
+
+    sys.addShutdownHook {
+      bindingFuture
+        .flatMap(_.unbind())
+        .onComplete(_ => actorSystem.terminate())
+    }
+
+    Await.ready(f, Duration.Inf)
   }
 }

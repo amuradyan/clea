@@ -131,7 +131,7 @@ object UserManagement {
   def deleteUser(username: String) = {
     usersCollection.deleteOne(equal("username", username)).results()
   }
-  
+
   // update user
   def updateUser(username:String, userUpdateSpec: BsonDocument) = {
     val updateQuery = new BsonDocument()
