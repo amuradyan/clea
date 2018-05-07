@@ -25,7 +25,7 @@ sourceSets {
 }
 
 shadowJar {
-    baseName = 'userManagement'
+    baseName = 'clea'
     version = 1.0
     transform(com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer) {
         resource = 'reference.conf'
@@ -34,7 +34,7 @@ shadowJar {
 
 jar {
     manifest {
-        attributes 'Main-Class': 'UserManagement'
+        attributes 'Main-Class': 'Clea'
     }
 }
 

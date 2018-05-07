@@ -3,7 +3,9 @@ import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
+import org.bson.conversions.Bson
 import org.bson.types.ObjectId
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonInt32, BsonString, conversions}
 import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Document, MongoClient, MongoClientSettings, MongoCollection, MongoCredential, Observable}
@@ -44,7 +46,6 @@ object Helpers {
 
     def printHeadResult(initial: String = ""): Unit = println(s"${initial}${converter(headResult())}")
   }
-
 }
 
 object UserManagement {
@@ -117,6 +118,7 @@ object UserManagement {
     val newUser = User(userSpec)
 
     usersCollection.insertOne(newUser).results()
+    usersCollection.find(equal("username", userSpec)).first().results()(0)
   }
 
   def getByUsername(username: String) = {
@@ -133,7 +135,19 @@ object UserManagement {
     usersCollection.find(equal("username", userSpec.username)).results()(0)
   }
 
-  def getAllUsers() = {
-    usersCollection.find().results()
+  def getUsers(userSearchCriteria: UserSearchCriteria) = {
+    var userIdsFilter, regionFilter: Bson = null
+    val filter = BsonDocument()
+
+    if (!userSearchCriteria.userIds.isEmpty) {
+      val inFilter = BsonDocument()
+      inFilter.append("$in", BsonArray(userSearchCriteria.userIds))
+      filter.append("username", inFilter)
+    }
+
+    if (!userSearchCriteria.region.isEmpty)
+      filter.append("region", BsonString(userSearchCriteria.region))
+
+    usersCollection.find(filter).results()
   }
 }
