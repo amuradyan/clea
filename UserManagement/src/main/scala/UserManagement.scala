@@ -118,7 +118,7 @@ object UserManagement {
     val newUser = User(userSpec)
 
     usersCollection.insertOne(newUser).results()
-    usersCollection.find(equal("username", userSpec)).first().results()(0)
+    usersCollection.find(equal("username", userSpec.username)).first().results()(0)
   }
 
   def getByUsername(username: String) = {
