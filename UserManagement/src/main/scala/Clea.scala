@@ -128,8 +128,9 @@ object Clea {
     implicit val executionCtx = actorSystem.dispatcher
 
     UserManagement.setup
+    import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 
-    val route = {
+    val route = cors() {
       var payload: JWTPayload = null
       var token = ""
 
