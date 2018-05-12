@@ -82,20 +82,13 @@ trait CsvParameters {
 
 final object CsvParameters extends CsvParameters
 
-object UserSearchCriteria {
-  def apply(usersIds: Option[List[String]], region: Option[String]) =
-    new UserSearchCriteria(usersIds.getOrElse(List()), region.getOrElse(""))
-}
+case class UserSearchCriteria(userIds: Option[List[String]] = None,
+                              region: Option[String] = None)
 
-case class UserSearchCriteria(userIds: List[String] = List(), region: String = "")
-
-object BookRecordSearchCriteria {
-  def apply(dateFrom: Option[Long], dateTo: Option[Long], usersIds: Option[List[String]], region: Option[String]) =
-    new BookRecordSearchCriteria(dateFrom.getOrElse(-1), dateTo.getOrElse(-1), usersIds.getOrElse(List()), region.getOrElse(""))
-}
-
-case class BookRecordSearchCriteria(dateFrom: Long = -1, dateTo: Long = -1, userIds: List[String] = List(), region: String = "")
-
+case class BookRecordSearchCriteria(dateFrom: Option[Long] = None,
+                                    dateTo: Option[Long] = None,
+                                    userIds: Option[List[String]] = None,
+                                    region: Option[String] = None)
 
 class Clea
 
@@ -180,7 +173,7 @@ object Clea {
                 post {
                   entity(as[String]) {
                     userSpecJson => {
-                      if(payload.role.equalsIgnoreCase("admin")) {
+                      if (payload.role.equalsIgnoreCase("admin")) {
                         val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
                         val newUser = UserManagement.createUser(userSpec)
                         complete(new Gson().toJson(UserExposed(newUser)))
@@ -195,7 +188,21 @@ object Clea {
 
                     parameters('users.as[List[String]].?, 'region.as[String].?) {
                       (users, region) => {
-                        val allUsers = UserManagement.getUsers(UserSearchCriteria(users, region)).map(UserExposed.apply(_))
+                        var allUsers = Seq[UserExposed]()
+                        payload.role match {
+                          case "admin" =>
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, region)).map(UserExposed(_))
+                          case "manager" => {
+                            val user = UserManagement.getByUsername(payload.sub)
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, Some(user.region))).map(UserExposed(_))
+                          }
+                          case "client" => {
+                            val user = UserManagement.getByUsername(payload.sub)
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(Some(List(user.username)), None)).map(UserExposed(_))
+                          }
+                        }
+
+
                         complete(new Gson().toJson(allUsers.toArray))
                       }
                     }
@@ -208,7 +215,12 @@ object Clea {
                       val user = UserManagement.getByUsername(jwtPayload.sub)
                       complete(new Gson().toJson(UserExposed(user)))
                     }
-                  }
+                  } ~
+                    pathPrefix("password") {
+                      patch {
+                        complete("Password reset request sent")
+                      }
+                    }
                 } ~
                 pathPrefix(Segment) {
                   username => {
@@ -222,13 +234,13 @@ object Clea {
                             val user = UserManagement.getByUsername(username)
                             val manager = UserManagement.getByUsername(payload.sub)
 
-                            if(manager.region.equalsIgnoreCase(user.region))
+                            if (manager.region.equalsIgnoreCase(user.region))
                               complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
                           case _ => {
-                            if(payload.sub.equalsIgnoreCase(username))
+                            if (payload.sub.equalsIgnoreCase(username))
                               complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
@@ -236,7 +248,7 @@ object Clea {
                         }
                       } ~
                         delete {
-                          if(payload.role.equalsIgnoreCase("admin")) {
+                          if (payload.role.equalsIgnoreCase("admin")) {
                             UserManagement.deleteUser(username)
                             complete(s"User $username deleted")
                           } else
@@ -253,6 +265,16 @@ object Clea {
                             }
                           }
                         }
+                    } ~
+                    pathPrefix("withdraw") {
+                      post {
+                        complete(s"Withdrawal request by $username")
+                      }
+                    } ~
+                    pathPrefix("deposit") {
+                      post {
+                        complete(s"Deposit request by $username")
+                      }
                     }
                   }
                 }
@@ -292,9 +314,9 @@ object Clea {
 
     val bindingFuture: Future[ServerBinding] = null
 
-    val f = for { bindingFuture <- Http().bindAndHandle(route, host, port)
-                  waitOnFuture  <- Promise[Done].future
-    }  yield waitOnFuture
+    val f = for {bindingFuture <- Http().bindAndHandle(route, host, port)
+                 waitOnFuture <- Promise[Done].future
+    } yield waitOnFuture
 
     logger.info(s"Server online at http://$host:$port/")
 

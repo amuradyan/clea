@@ -141,17 +141,21 @@ object UserManagement {
   }
 
   def getUsers(userSearchCriteria: UserSearchCriteria) = {
-    var userIdsFilter, regionFilter: Bson = null
     val filter = BsonDocument()
 
-    if (!userSearchCriteria.userIds.isEmpty) {
-      val inFilter = BsonDocument()
-      inFilter.append("$in", BsonArray(userSearchCriteria.userIds))
-      filter.append("username", inFilter)
+    userSearchCriteria.region match {
+      case Some(region) => filter.append("region", BsonString(region))
+      case None => ;
     }
 
-    if (!userSearchCriteria.region.isEmpty)
-      filter.append("region", BsonString(userSearchCriteria.region))
+    userSearchCriteria.userIds match {
+      case Some(userIds) => {
+        val inFilter = BsonDocument()
+        inFilter.append("$in", BsonArray(userSearchCriteria.userIds))
+        filter.append("username", inFilter)
+      }
+      case None => ;
+    }
 
     usersCollection.find(filter).results()
   }
