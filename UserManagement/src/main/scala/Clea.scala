@@ -202,6 +202,7 @@ object Clea {
                   }
                 } ~
                   get {
+                    import CsvParameters._
 
                     parameters('users.as[List[String]].?, 'region.as[String].?) {
                       (users, region) => {

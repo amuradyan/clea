@@ -27,6 +27,11 @@ object Helpers {
     override val converter: (User) => String = (doc) => gson.toJson(doc)
   }
 
+  implicit class TokenObservable[C](val observable: Observable[Token]) extends ImplicitObservable[Token] {
+    val gson = new Gson();
+    override val converter: (Token) => String = (doc) => gson.toJson(doc)
+  }
+
   implicit class GenericObservable[C](val observable: Observable[C]) extends ImplicitObservable[C] {
     override val converter: (C) => String = (doc) => doc.toString
   }
@@ -48,13 +53,15 @@ object Helpers {
   }
 }
 
+case class Token(_id: String, token: String)
+
 object UserManagement {
   import Helpers._
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
   import org.mongodb.scala.bson.codecs.Macros._
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract], classOf[Token]), DEFAULT_CODEC_REGISTRY)
 
   val conf = ConfigFactory.load()
 
@@ -78,6 +85,7 @@ object UserManagement {
   val cleaDB = mongoClient.getDatabase(db).withCodecRegistry(codecRegistry)
 
   val usersCollection: MongoCollection[User] = cleaDB.getCollection("users")
+  val tokenCollection: MongoCollection[Token] = cleaDB.getCollection("tokens")
 
 
   var blacklistedTokens = Seq[String]()
@@ -103,7 +111,11 @@ object UserManagement {
     }
   }
 
-  def isTokenBlacklisted(token: String) = blacklistedTokens.contains(token)
+  def isTokenBlacklisted(token: String) = {
+    val tokens = tokenCollection.find(equal("token", token)).first().results()
+
+    !tokens.isEmpty
+  }
 
   // login
   def login(loginSpec: LoginSpec) = {
@@ -116,7 +128,8 @@ object UserManagement {
   }
 
   def logout(token: String) = {
-    blacklistedTokens :+= token
+    if(!isTokenBlacklisted(token))
+      tokenCollection.insertOne(Token(new ObjectId().toString, token)).results()
   }
 
   // create user
