@@ -11,9 +11,8 @@ import akka.stream.ActorMaterializer
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
-import org.bson.BsonType
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonDocument, BsonValue}
+import org.mongodb.scala.bson.BsonDocument
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 
 import scala.concurrent.duration.Duration
@@ -203,7 +202,6 @@ object Clea {
                   }
                 } ~
                   get {
-                    import CsvParameters._
 
                     parameters('users.as[List[String]].?, 'region.as[String].?) {
                       (users, region) => {

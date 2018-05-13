@@ -33,7 +33,6 @@ object CleversniperAdapter {
   val logger = Logger[CleversniperAdapter]
 
   def getDeals: List[CleversniperDeal] = {
-    import scala.collection.JavaConversions._
     var dealList = List[CleversniperDeal]()
 
     val tokenResponse = Http("https://algo.cleversniper.com/api/session").option(HttpOptions.allowUnsafeSSL).asString
