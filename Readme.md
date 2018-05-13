@@ -50,7 +50,7 @@ curl -X DELETE \
 
 ## *user*
 
-### Get all users
+### Get users
 
 The example below illustrates the way of querying over all users
 This endpoint has two optional query params:  
@@ -64,6 +64,8 @@ curl -X GET \
   -H 'Authorization: <current-jwt-token> \
   -H 'Cache-Control: no-cache' 
 ```
+
+**NOTE:** Based on the role of the requester the *region* and the *userIds* will be limited
 
 ### Create a user
 
@@ -83,11 +85,15 @@ curl -X POST \
 	"phone" : "+37493939393",
 	"region" : "ukr",
 	"role" : "user",
-	"passwordHash" : "4DFF4EA340F0A823F15D3F4F01AB62EAE0E5DA579CCB851F8DB9DFE84C58B2B37B89903A740E1EE172DA793A6E79D560E5F7F9BD058A12A280433ED6FA46510A"
+	"passwordHash" : "4DFF4EA340F0A823F15D3F4F01AB62EAE0E5DA579CCB851F8DB9DFE84C58B2B37B89903A740E1EE172DA793A6E79D560E5F7F9BD058A12A280433ED6FA46510A",
+	"botContracts": [{
+		"botName": "alpinist",
+		"profitMargin": 0.4
+	}]
 }'
 ```
 
-### Get own user
+### Get own user info
 The example below illustrates the way to query own data
 
 ```
@@ -139,5 +145,16 @@ curl -X PATCH \
 }'
 ```
 
+### Request withdrawal
+
+### Request deposit
+
+### Get books
+
+### Get a specific book
+
+###
+
 # NOTE
 Also the [Postman collection](https://www.getpostman.com/collections/536663a9b343d33250e8) can be handy in testing the endpoints
+
