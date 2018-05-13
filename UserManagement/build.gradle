@@ -57,6 +57,8 @@ dependencies {
     compile group: 'org.apache.httpcomponents', name: 'httpcore', version: '4.4.9'
     compile group: 'org.apache.httpcomponents', name: 'fluent-hc', version: '4.5.5'
     compile group: 'ch.megard', name: 'akka-http-cors_2.12', version: '0.3.0'
+    compile group: 'org.scalaj', name: 'scalaj-http_2.12', version: '2.4.0'
+
     compile ( group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0'){
         exclude (group: 'org.bouncycastle')
     }
