@@ -1,13 +1,11 @@
+import java.util
 import java.util.concurrent.TimeUnit
 
 import com.google.gson.Gson
 import com.mongodb.ConnectionString
-import org.mongodb.scala.model.Updates._
 import com.typesafe.config.ConfigFactory
-import org.bson.BsonValue
-import org.bson.conversions.Bson
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonElement, BsonInt32, BsonString, conversions}
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString}
 import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Document, MongoClient, MongoClientSettings, MongoCollection, MongoCredential, Observable}
@@ -51,7 +49,6 @@ object Helpers {
 }
 
 object UserManagement {
-
   import Helpers._
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
@@ -165,5 +162,34 @@ object UserManagement {
     }
 
     usersCollection.find(filter).results()
+  }
+
+  def addContract(username: String, contract: BotContract) = {
+    var contracts = getByUsername(username).botContracts
+
+    if(!contracts.contains(contract)) {
+
+      contracts :+= contract
+      val contractsBson = BsonArray()
+
+      contracts.foreach(
+        el => {
+          val contractBson = BsonDocument()
+          contractBson.append("botName", BsonString(el.botName))
+          contractBson.append("profitMargin", BsonNumber(el.profitMargin))
+
+          contractsBson.add(contractBson)
+        }
+      )
+
+      val botContracts= BsonDocument()
+      val javaContracts = new util.ArrayList[BotContract]
+      contracts.foreach{javaContracts.add(_)}
+      botContracts.append("botContracts", contractsBson)
+      val updateQuery = new BsonDocument()
+      updateQuery.append("$set", botContracts)
+      usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
+      usersCollection.find(equal("username", username)).results()(0)
+    }
   }
 }

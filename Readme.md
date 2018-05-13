@@ -15,6 +15,14 @@ The system comes with a predefined user with the following username and password
 **username** : *admin*   
 **password hash** :  *C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC*
 
+## Bots
+
+Currently thwo bots are supported: *alpinist* and *cleversniper*
+
+## Roles
+
+Currently three roles are supported: *admin*, *manager* and *client*
+
 ## *token*
 
 The lifespan of a token is set to 24 hours
@@ -84,7 +92,7 @@ curl -X POST \
 	"email" : "rickc18@citadel.com",
 	"phone" : "+37493939393",
 	"region" : "ukr",
-	"role" : "user",
+	"role" : "client",
 	"passwordHash" : "4DFF4EA340F0A823F15D3F4F01AB62EAE0E5DA579CCB851F8DB9DFE84C58B2B37B89903A740E1EE172DA793A6E79D560E5F7F9BD058A12A280433ED6FA46510A",
 	"botContracts": [{
 		"botName": "alpinist",
@@ -142,6 +150,22 @@ curl -X PATCH \
   -d '{
 	"email" : "rick_c17@citadel.com",
     "phone" : "+37491111112111"
+}'
+```
+
+### Add a contract to client
+
+The example below shows how to add a bot contract to a user. In this example the users username is captured in **username-of-interest** path variable and the body represents the contract to be added
+
+```
+curl -X POST \
+  http://<host>:<port>/users/<username>/contracts \
+  -H 'Authorization: <current-jwt-token> \
+  -H 'Cache-Control: no-cache' \
+  -H 'Content-Type: application/json' \
+  -d '{
+		"botName": "cleversniper",
+		"profitMargin": 0.6
 }'
 ```
 

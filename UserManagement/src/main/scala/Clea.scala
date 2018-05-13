@@ -11,8 +11,9 @@ import akka.stream.ActorMaterializer
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
+import org.bson.BsonType
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.BsonDocument
+import org.mongodb.scala.bson.{BsonDocument, BsonValue}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 
 import scala.concurrent.duration.Duration
@@ -293,6 +294,18 @@ object Clea {
                     pathPrefix("deposit") {
                       post {
                         complete(s"Deposit request by $username")
+                      }
+                    } ~
+                    pathPrefix("contracts") {
+                      post {
+                        entity(as[String]){
+                          contractSpecJson => {
+                            val contract = new Gson().fromJson(contractSpecJson, classOf[BotContract])
+
+                            UserManagement.addContract(username, contract)
+                            complete("")
+                          }
+                        }
                       }
                     }
                   }
