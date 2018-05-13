@@ -1,67 +1,83 @@
-import java.util
-import java.util.concurrent.TimeUnit
+package user_management
 
-import com.google.gson.Gson
+import java.util
+
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
+import helpers.Helpers._
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString}
 import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.model.Filters._
-import org.mongodb.scala.{Document, MongoClient, MongoClientSettings, MongoCollection, MongoCredential, Observable}
-
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import org.bson.codecs.configuration.CodecRegistries._
+import org.mongodb.scala.bson.codecs.Macros._
+import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCollection, MongoCredential}
+import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
+import token_management.{LoginSpec, TokenManagement}
 
 /**
-  * Created by spectrum on 5/4/2018.
+  * Created by spectrum on 5/14/2018.
   */
-object Helpers {
+object User {
+  def apply(userSpec: UserSpec): User = {
+    var botContracts = List[BotContract]()
 
-  implicit class DocumentObservable[C](val observable: Observable[Document]) extends ImplicitObservable[Document] {
-    override val converter: (Document) => String = (doc) => doc.toJson
-  }
-
-  implicit class UserObservable[C](val observable: Observable[User]) extends ImplicitObservable[User] {
-    val gson = new Gson();
-    override val converter: (User) => String = (doc) => gson.toJson(doc)
-  }
-
-  implicit class TokenObservable[C](val observable: Observable[Token]) extends ImplicitObservable[Token] {
-    val gson = new Gson();
-    override val converter: (Token) => String = (doc) => gson.toJson(doc)
-  }
-
-  implicit class GenericObservable[C](val observable: Observable[C]) extends ImplicitObservable[C] {
-    override val converter: (C) => String = (doc) => doc.toString
-  }
-
-  trait ImplicitObservable[C] {
-    val observable: Observable[C]
-    val converter: (C) => String
-
-    def results(): Seq[C] = Await.result(observable.toFuture(), Duration(10, TimeUnit.SECONDS))
-
-    def headResult() = Await.result(observable.head(), Duration(10, TimeUnit.SECONDS))
-
-    def printResults(initial: String = ""): Unit = {
-      if (initial.length > 0) print(initial)
-      results().foreach(res => println(converter(res)))
-    }
-
-    def printHeadResult(initial: String = ""): Unit = println(s"${initial}${converter(headResult())}")
+    userSpec.botContracts.forEach(botContracts :+= _)
+    new User(new ObjectId().toString, userSpec.name, userSpec.surname,
+      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash,
+      new ObjectId().toString, botContracts)
   }
 }
 
-case class Token(_id: String, token: String)
+case class User(_id: String,
+                name: String,
+                surname: String,
+                username: String,
+                email: String,
+                phone: String,
+                region: String,
+                role: String,
+                passwordHash: String,
+                bookId: String,
+                botContracts: List[BotContract])
+
+
+case class BotContract(botName: String, profitMargin: Float)
+
+case class UserSpec(name: String,
+                    surname: String,
+                    username: String,
+                    email: String,
+                    phone: String,
+                    region: String,
+                    role: String,
+                    passwordHash: String,
+                    botContracts: util.ArrayList[BotContract])
+
+object UserExposed {
+  def apply(user: User): UserExposed = {
+    val botContracts = new util.ArrayList[BotContract]()
+    user.botContracts.foreach {botContracts.add(_)}
+    new UserExposed(user.name, user.surname, user.username, user.email, user.phone,
+      user.region, user.role, user.bookId, botContracts)
+  }
+}
+
+case class UserExposed(name: String,
+                       surname: String,
+                       username: String,
+                       email: String,
+                       phone: String,
+                       region: String,
+                       role: String,
+                       bookId: String,
+                       botContracts: util.ArrayList[BotContract])
+
+case class UserSearchCriteria(userIds: Option[List[String]] = None, region: Option[String] = None)
+
 
 object UserManagement {
-  import Helpers._
-  import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
-  import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
-  import org.mongodb.scala.bson.codecs.Macros._
-
-  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract], classOf[Token]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract]), DEFAULT_CODEC_REGISTRY)
 
   val conf = ConfigFactory.load()
 
@@ -85,10 +101,6 @@ object UserManagement {
   val cleaDB = mongoClient.getDatabase(db).withCodecRegistry(codecRegistry)
 
   val usersCollection: MongoCollection[User] = cleaDB.getCollection("users")
-  val tokenCollection: MongoCollection[Token] = cleaDB.getCollection("tokens")
-
-
-  var blacklistedTokens = Seq[String]()
 
   val admin = new User(new ObjectId().toString, "Admin", "Admin", "admin", "admin@talisant.com", "+37493223775",
     "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
@@ -111,25 +123,18 @@ object UserManagement {
     }
   }
 
-  def isTokenBlacklisted(token: String) = {
-    val tokens = tokenCollection.find(equal("token", token)).first().results()
-
-    !tokens.isEmpty
-  }
-
-  // login
   def login(loginSpec: LoginSpec) = {
     val users = usersCollection.find(and(equal("username", loginSpec.username), equal("passwordHash", loginSpec.passwordHash))).first().results()
 
     if (!users.isEmpty)
-      Some(users(0))
+      Some(TokenManagement.issueToken(users(0)))
     else
       None
   }
 
   def logout(token: String) = {
-    if(!isTokenBlacklisted(token))
-      tokenCollection.insertOne(Token(new ObjectId().toString, token)).results()
+    if(!TokenManagement.isTokenBlacklisted(token))
+      TokenManagement.blacklistToken(token)
   }
 
   // create user

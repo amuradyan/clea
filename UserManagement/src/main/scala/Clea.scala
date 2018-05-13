@@ -4,16 +4,20 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.headers.{HttpOrigin, HttpOriginRange}
+import akka.http.scaladsl.model.{HttpMethods, HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
 import akka.stream.ActorMaterializer
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.BsonDocument
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
+import token_management.{JWTPayload, LoginSpec, TokenManagement}
+import user_management._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
@@ -22,61 +26,6 @@ import scala.concurrent.{Await, Future, Promise}
 /**
   * Created by spectrum on 5/2/2018.
   */
-object User {
-  def apply(userSpec: UserSpec): User = {
-    var botContracts = List[BotContract]()
-
-    userSpec.botContracts.forEach(botContracts :+= _)
-    new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash,
-      new ObjectId().toString, botContracts)
-  }
-}
-
-case class User(_id: String,
-                name: String,
-                surname: String,
-                username: String,
-                email: String,
-                phone: String,
-                region: String,
-                role: String,
-                passwordHash: String,
-                bookId: String,
-                botContracts: List[BotContract])
-
-case class BotContract(botName: String, profitMargin: Float)
-
-case class UserSpec(name: String,
-                    surname: String,
-                    username: String,
-                    email: String,
-                    phone: String,
-                    region: String,
-                    role: String,
-                    passwordHash: String,
-                    botContracts: util.ArrayList[BotContract])
-
-object UserExposed {
-  def apply(user: User): UserExposed = {
-    val botContracts = new util.ArrayList[BotContract]()
-    user.botContracts.foreach {botContracts.add(_)}
-    new UserExposed(user.name, user.surname, user.username, user.email, user.phone,
-      user.region, user.role, user.bookId, botContracts)
-  }
-}
-
-case class UserExposed(name: String,
-                       surname: String,
-                       username: String,
-                       email: String,
-                       phone: String,
-                       region: String,
-                       role: String,
-                       bookId: String,
-                       botContracts: util.ArrayList[BotContract])
-
-case class LoginSpec(username: String, passwordHash: String)
 
 case class BookRecord(userId: String,
                       date: Long,
@@ -87,7 +36,6 @@ case class BookRecord(userId: String,
                       currentTotalBalance: Float,
                       bookId: String)
 
-case class JWTPayload(iat: Long, exp: Long, sub: String, role: String)
 
 trait CsvParameters {
   implicit def csvSeqParamMarshaller: FromStringUnmarshaller[Seq[String]] =
@@ -98,9 +46,6 @@ trait CsvParameters {
 }
 
 final object CsvParameters extends CsvParameters
-
-case class UserSearchCriteria(userIds: Option[List[String]] = None,
-                              region: Option[String] = None)
 
 case class BookRecordSearchCriteria(dateFrom: Option[Long] = None,
                                     dateTo: Option[Long] = None,
@@ -114,22 +59,9 @@ object Clea {
 
   val conf = ConfigFactory.load()
   val API_KEY = conf.getString("api_key")
-  val secret_key = conf.getString("secret_key")
 
   val host = conf.getString("app.host")
   val port = conf.getInt("app.port")
-
-  def generateJwt(user: User) = {
-    val header = JwtHeader(JwtAlgorithm.HS512, "JWT")
-
-    var claim = JwtClaim()
-    claim = claim +("iat", System.currentTimeMillis())
-    claim = claim +("exp", System.currentTimeMillis() + 86400)
-    claim = claim +("sub", user.username)
-    claim = claim +("role", user.role)
-
-    Jwt.encode(header, claim, secret_key)
-  }
 
   def main(args: Array[String]) {
     implicit val actorSystem = ActorSystem("Clea")
@@ -140,7 +72,8 @@ object Clea {
     UserManagement.setup
     import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 
-    val route = cors() {
+    val settings = CorsSettings.defaultSettings.withAllowedOrigins(HttpOriginRange(HttpOrigin("http://andranik.am")))
+    val route = cors(settings) {
       var payload: JWTPayload = null
       var token = ""
 
@@ -156,7 +89,7 @@ object Clea {
                 val user = UserManagement.login(loginSpec)
 
                 user match {
-                  case Some(user) => complete(generateJwt(user))
+                  case Some(token) => complete(token)
                   case None => complete("Invalid username/password")
                 }
               }
@@ -171,18 +104,20 @@ object Clea {
           if (authHeader.isPresent) {
             token = authHeader.get().value()
 
-            logger.info(s"Token: $token")
-            logger.info(s"Is blacklisted: ${UserManagement.isTokenBlacklisted(token)}")
-            logger.info(s"Is valid: ${Jwt.isValid(token, secret_key, Seq(JwtAlgorithm.HS512))}")
+            logger.info(s"user_management.Token: $token")
+            logger.info(s"Is blacklisted: ${TokenManagement.isTokenBlacklisted(token)}")
+            logger.info(s"Is valid: ${TokenManagement.isValid(token)}")
 
-            payload = new Gson().fromJson(Jwt.decode(token, secret_key, Seq(JwtAlgorithm.HS512)).get, classOf[JWTPayload])
-            !UserManagement.isTokenBlacklisted(token) && Jwt.isValid(token, secret_key, Seq(JwtAlgorithm.HS512))
+            payload = TokenManagement.decode(token)
+            !TokenManagement.isTokenBlacklisted(token) && TokenManagement.isValid(token)
           } else false
         }) {
           pathPrefix("token") {
-            delete {
-              UserManagement.logout(token)
-              complete("Commencing logout")
+            cors(settings){
+              delete {
+                UserManagement.logout(token)
+                complete("Commencing logout")
+              }
             }
           } ~
             pathPrefix("users") {
@@ -229,7 +164,7 @@ object Clea {
                 pathPrefix("me") {
                   pathEnd {
                     get {
-                      val jwtPayload = new Gson().fromJson(Jwt.decode(token, secret_key, Seq(JwtAlgorithm.HS512)).get, classOf[JWTPayload])
+                      val jwtPayload = TokenManagement.decode(token)
                       val user = UserManagement.getByUsername(jwtPayload.sub)
                       complete(new Gson().toJson(UserExposed(user)))
                     }

@@ -1,4 +1,4 @@
-package cleversniper
+package adapters.cleversniper
 
 import java.util
 
@@ -35,10 +35,10 @@ object CleversniperAdapter {
   def getDeals: List[CleversniperDeal] = {
     var dealList = List[CleversniperDeal]()
 
-    val tokenResponse = Http("https://algo.cleversniper.com/api/session").option(HttpOptions.allowUnsafeSSL).asString
+    val tokenResponse = Http("https://algo.adapters.cleversniper.com/api/session").option(HttpOptions.allowUnsafeSSL).asString
 
     if (tokenResponse.code == 200) {
-      val dealsResponse = Http("https://algo.cleversniper.com/api/orders?removeall=false")
+      val dealsResponse = Http("https://algo.adapters.cleversniper.com/api/orders?removeall=false")
         .header("Content-Type", "application/json")
         .header("Charset", "UTF-8")
         .header("sessionid", tokenResponse.body.toString.replace("\"", ""))
@@ -54,10 +54,10 @@ object CleversniperAdapter {
 
         deals.forEach({ el => dealList :+= el})
       } else {
-        logger.info("Unable to obtain deals from cleversniper")
+        logger.info("Unable to obtain deals from adapters.cleversniper")
       }
     } else {
-      logger.info("Unable to obtain a token from cleversniper")
+      logger.info("Unable to obtain a token from adapters.cleversniper")
     }
 
     dealList
