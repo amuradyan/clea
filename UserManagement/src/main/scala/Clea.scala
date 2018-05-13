@@ -1,3 +1,5 @@
+import java.util
+
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -15,14 +17,20 @@ import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
+//import scala.collection.JavaConverters._
 
 /**
   * Created by spectrum on 5/2/2018.
   */
 object User {
-  def apply(userSpec: UserSpec): User = new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-    userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash,
-    new ObjectId().toString)
+  def apply(userSpec: UserSpec): User = {
+    var botContracts = List[BotContract]()
+
+    userSpec.botContracts.forEach(botContracts :+= _)
+    new User(new ObjectId().toString, userSpec.name, userSpec.surname,
+      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash,
+      new ObjectId().toString, botContracts)
+  }
 }
 
 case class User(_id: String,
@@ -34,7 +42,10 @@ case class User(_id: String,
                 region: String,
                 role: String,
                 passwordHash: String,
-                bookId: String)
+                bookId: String,
+                botContracts: List[BotContract])
+
+case class BotContract(botName: String, profitMargin: Float)
 
 case class UserSpec(name: String,
                     surname: String,
@@ -43,11 +54,16 @@ case class UserSpec(name: String,
                     phone: String,
                     region: String,
                     role: String,
-                    passwordHash: String)
+                    passwordHash: String,
+                    botContracts: util.ArrayList[BotContract])
 
 object UserExposed {
-  def apply(user: User): UserExposed = new UserExposed(user.name, user.surname, user.username, user.email, user.phone,
-    user.region, user.role, user.bookId)
+  def apply(user: User): UserExposed = {
+    val botContracts = new util.ArrayList[BotContract]()
+    user.botContracts.foreach {botContracts.add(_)}
+    new UserExposed(user.name, user.surname, user.username, user.email, user.phone,
+      user.region, user.role, user.bookId, botContracts)
+  }
 }
 
 case class UserExposed(name: String,
@@ -57,7 +73,8 @@ case class UserExposed(name: String,
                        phone: String,
                        region: String,
                        role: String,
-                       bookId: String)
+                       bookId: String,
+                       botContracts: util.ArrayList[BotContract])
 
 case class LoginSpec(username: String, passwordHash: String)
 
@@ -174,6 +191,7 @@ object Clea {
                   entity(as[String]) {
                     userSpecJson => {
                       if (payload.role.equalsIgnoreCase("admin")) {
+                        logger.info(userSpecJson)
                         val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
                         val newUser = UserManagement.createUser(userSpec)
                         complete(new Gson().toJson(UserExposed(newUser)))
@@ -228,6 +246,7 @@ object Clea {
                       get {
                         payload.role match {
                           case "admin" => {
+                            logger.info(UserExposed(UserManagement.getByUsername(username)).toString)
                             complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
                           }
                           case "manager" => {
@@ -239,7 +258,7 @@ object Clea {
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
-                          case _ => {
+                          case "client" => {
                             if (payload.sub.equalsIgnoreCase(username))
                               complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
                             else

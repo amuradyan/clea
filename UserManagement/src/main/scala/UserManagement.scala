@@ -57,7 +57,7 @@ object UserManagement {
   import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
   import org.mongodb.scala.bson.codecs.Macros._
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[User]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract]), DEFAULT_CODEC_REGISTRY)
 
   val conf = ConfigFactory.load()
 
@@ -86,8 +86,9 @@ object UserManagement {
   var blacklistedTokens = Seq[String]()
 
   val admin = new User(new ObjectId().toString, "Admin", "Admin", "admin", "admin@talisant.com", "+37493223775",
-    "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString)
-
+    "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
+  val talisant = new User(new ObjectId().toString, "Talisant", "Talisnt", "talisant", "talisant@talisant.com", "+37493223775",
+    "ARM", "client", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
 
   // Methods
 
@@ -96,6 +97,12 @@ object UserManagement {
 
     if (admins.isEmpty) {
       usersCollection.insertOne(admin).results()
+    }
+
+    val talisants = usersCollection.find(equal("username", "talisant")).first().results()
+
+    if (talisants.isEmpty) {
+      usersCollection.insertOne(talisant).results()
     }
   }
 
