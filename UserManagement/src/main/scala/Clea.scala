@@ -5,7 +5,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.headers.{HttpOrigin, HttpOriginRange}
-import akka.http.scaladsl.model.{HttpMethods, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
 import akka.stream.ActorMaterializer
@@ -13,9 +13,7 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
-import org.bson.types.ObjectId
 import org.mongodb.scala.bson.BsonDocument
-import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 import token_management.{JWTPayload, LoginSpec, TokenManagement}
 import user_management._
 

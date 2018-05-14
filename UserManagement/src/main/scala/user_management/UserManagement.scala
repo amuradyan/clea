@@ -2,17 +2,11 @@ package user_management
 
 import java.util
 
-import com.mongodb.ConnectionString
-import com.typesafe.config.ConfigFactory
 import helpers.Helpers._
+import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString}
-import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.model.Filters._
-import org.bson.codecs.configuration.CodecRegistries._
-import org.mongodb.scala.bson.codecs.Macros._
-import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCollection, MongoCredential}
-import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
 import token_management.{LoginSpec, TokenManagement}
 
 /**
@@ -77,30 +71,7 @@ case class UserSearchCriteria(userIds: Option[List[String]] = None, region: Opti
 
 
 object UserManagement {
-  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract]), DEFAULT_CODEC_REGISTRY)
-
-  val conf = ConfigFactory.load()
-
-  val db = conf.getString("mongodb.db")
-  val user = conf.getString("mongodb.user")
-  val password = conf.getString("mongodb.password")
-  val host = conf.getString("mongodb.host")
-  val port = conf.getString("mongodb.port")
-
-  val clientSettingsBuilder = MongoClientSettings.builder()
-  val mongoClusterSettingsBuilder = ClusterSettings.builder()
-  val mongoConnectionString = new ConnectionString(s"mongodb://$host:$port")
-  mongoClusterSettingsBuilder.applyConnectionString(mongoConnectionString)
-
-  val credential = MongoCredential.createScramSha1Credential(user, db, password.toCharArray)
-  clientSettingsBuilder.credential(credential)
-  clientSettingsBuilder.clusterSettings(mongoClusterSettingsBuilder.build())
-
-  val mongoClient = MongoClient(clientSettingsBuilder.build())
-
-  val cleaDB = mongoClient.getDatabase(db).withCodecRegistry(codecRegistry)
-
-  val usersCollection: MongoCollection[User] = cleaDB.getCollection("users")
+  val usersCollection = CleaMongoClient.getUsersCollection
 
   val admin = new User(new ObjectId().toString, "Admin", "Admin", "admin", "admin@talisant.com", "+37493223775",
     "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
