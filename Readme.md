@@ -171,7 +171,25 @@ curl -X POST \
 
 ### Request withdrawal
 
+The example below shows how to issue a deposit. It contains two notable components, the *by* of the deposit and the *subject* of the deposit. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the withdrawal data
+
+```
+curl -X POST \
+  http://localhost:8080/users/rick_c18/withdraw \
+  -H 'Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE1MjYyOTQ1OTQxNDQsImV4cCI6MTUyNjI5NDY4MDc2MSwic3ViIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4ifQ.twQ1SpZAcmlLAeU9x4anGFNxCt2POCnJfZrXClVj7EQLNIpplNJgIn9689w_CZUqEa-6hjLOcwTVh0RC1JfJkA' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Content-Type: application/json' \
+  -d '{
+	"amount": 1000,
+	"fee": 0,
+	"note": "Try to value useful qualities in one who loves you."
+}'
+```
+
 ### Request deposit
+
+The example below shows how to add a bot contract to a user. In this example the users username is captured in **username-of-interest** path variable and the body represents the contract to be added
+
 
 ### Get books
 
