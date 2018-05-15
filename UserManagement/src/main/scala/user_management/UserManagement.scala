@@ -2,25 +2,22 @@ package user_management
 
 import java.util
 
+import accounting.{Accounting, Book, BookBrief}
+import contracts.{BotContract, Contracts}
 import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString}
 import org.mongodb.scala.model.Filters._
 import token_management.{LoginSpec, TokenManagement}
+import collection.JavaConverters._
 
 /**
   * Created by spectrum on 5/14/2018.
   */
 object User {
-  def apply(userSpec: UserSpec): User = {
-    var botContracts = List[BotContract]()
-
-    userSpec.botContracts.forEach(botContracts :+= _)
-    new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash,
-      new ObjectId().toString, botContracts)
-  }
+  def apply(userSpec: UserSpec): User = new User(new ObjectId().toString, userSpec.name, userSpec.surname,
+      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash)
 }
 
 case class User(_id: String,
@@ -31,12 +28,7 @@ case class User(_id: String,
                 phone: String,
                 region: String,
                 role: String,
-                passwordHash: String,
-                bookId: String,
-                botContracts: List[BotContract])
-
-
-case class BotContract(botName: String, profitMargin: Float)
+                passwordHash: String)
 
 case class UserSpec(name: String,
                     surname: String,
@@ -45,15 +37,15 @@ case class UserSpec(name: String,
                     phone: String,
                     region: String,
                     role: String,
-                    passwordHash: String,
-                    botContracts: util.ArrayList[BotContract])
+                    passwordHash: String)
 
 object UserExposed {
   def apply(user: User): UserExposed = {
-    val botContracts = new util.ArrayList[BotContract]()
-    user.botContracts.foreach {botContracts.add(_)}
-    new UserExposed(user.name, user.surname, user.username, user.email, user.phone,
-      user.region, user.role, user.bookId, botContracts)
+    val botContracts = Contracts.getContractsOf(user._id)
+    val bookBriefs = Accounting.getBookBriefs(user._id)
+
+    new UserExposed(user.name, user.surname, user.username, user.email, user.phone, user.region, user.role,
+      botContracts, bookBriefs)
   }
 }
 
@@ -64,8 +56,8 @@ case class UserExposed(name: String,
                        phone: String,
                        region: String,
                        role: String,
-                       bookId: String,
-                       botContracts: util.ArrayList[BotContract])
+                       botContracts: util.ArrayList[BotContract],
+                       bookBriefs: util.ArrayList[BookBrief])
 
 case class UserSearchCriteria(userIds: Option[List[String]] = None, region: Option[String] = None)
 
@@ -74,9 +66,9 @@ object UserManagement {
   val usersCollection = CleaMongoClient.getUsersCollection
 
   val admin = new User(new ObjectId().toString, "Admin", "Admin", "admin", "admin@talisant.com", "+37493223775",
-    "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
+    "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
   val talisant = new User(new ObjectId().toString, "Talisant", "Talisnt", "talisant", "talisant@talisant.com", "+37493223775",
-    "ARM", "client", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC", new ObjectId().toString, List())
+    "ARM", "client", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
 
   // Methods
 
@@ -84,13 +76,14 @@ object UserManagement {
     val admins = usersCollection.find(equal("username", "admin")).first().results()
 
     if (admins.isEmpty) {
-      usersCollection.insertOne(admin).results()
+      val user = usersCollection.insertOne(admin).results()
     }
 
     val talisants = usersCollection.find(equal("username", "talisant")).first().results()
 
     if (talisants.isEmpty) {
       usersCollection.insertOne(talisant).results()
+      Accounting.createBook(talisant._id, "profit")
     }
   }
 
@@ -153,32 +146,32 @@ object UserManagement {
     usersCollection.find(filter).results()
   }
 
-  def addContract(username: String, contract: BotContract) = {
-    var contracts = getByUsername(username).botContracts
-
-    if(!contracts.contains(contract)) {
-
-      contracts :+= contract
-      val contractsBson = BsonArray()
-
-      contracts.foreach(
-        el => {
-          val contractBson = BsonDocument()
-          contractBson.append("botName", BsonString(el.botName))
-          contractBson.append("profitMargin", BsonNumber(el.profitMargin))
-
-          contractsBson.add(contractBson)
-        }
-      )
-
-      val botContracts= BsonDocument()
-      val javaContracts = new util.ArrayList[BotContract]
-      contracts.foreach{javaContracts.add(_)}
-      botContracts.append("botContracts", contractsBson)
-      val updateQuery = new BsonDocument()
-      updateQuery.append("$set", botContracts)
-      usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
-      usersCollection.find(equal("username", username)).results()(0)
-    }
-  }
+//  def addContract(username: String, contract: BotContract) = {
+//    var contracts = getByUsername(username).botContracts
+//
+//    if(!contracts.contains(contract)) {
+//
+//      contracts :+= contract
+//      val contractsBson = BsonArray()
+//
+//      contracts.foreach(
+//        el => {
+//          val contractBson = BsonDocument()
+//          contractBson.append("botName", BsonString(el.botName))
+//          contractBson.append("profitMargin", BsonNumber(el.profitMargin))
+//
+//          contractsBson.add(contractBson)
+//        }
+//      )
+//
+//      val botContracts= BsonDocument()
+//      val javaContracts = new util.ArrayList[BotContract]
+//      contracts.foreach{javaContracts.add(_)}
+//      botContracts.append("botContracts", contractsBson)
+//      val updateQuery = new BsonDocument()
+//      updateQuery.append("$set", botContracts)
+//      usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
+//      usersCollection.find(equal("username", username)).results()(0)
+//    }
+//  }
 }

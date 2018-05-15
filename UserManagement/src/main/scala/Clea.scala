@@ -1,5 +1,4 @@
-import java.util
-
+import accounting.{Accounting, BookRecord, DepositWithdrawSpec, RecordSearchCriteria}
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -19,21 +18,12 @@ import user_management._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-//import scala.collection.JavaConverters._
+
+import java.util
 
 /**
   * Created by spectrum on 5/2/2018.
   */
-
-case class BookRecord(userId: String,
-                      date: Long,
-                      recordType: String,
-                      amount: Float,
-                      fee: Float,
-                      source: String,
-                      currentTotalBalance: Float,
-                      bookId: String)
-
 
 trait CsvParameters {
   implicit def csvSeqParamMarshaller: FromStringUnmarshaller[Seq[String]] =
@@ -44,11 +34,6 @@ trait CsvParameters {
 }
 
 final object CsvParameters extends CsvParameters
-
-case class BookRecordSearchCriteria(dateFrom: Option[Long] = None,
-                                    dateTo: Option[Long] = None,
-                                    userIds: Option[List[String]] = None,
-                                    region: Option[String] = None)
 
 class Clea
 
@@ -111,7 +96,7 @@ object Clea {
           } else false
         }) {
           pathPrefix("token") {
-            cors(settings){
+            cors(settings) {
               delete {
                 UserManagement.logout(token)
                 complete("Commencing logout")
@@ -218,60 +203,81 @@ object Clea {
                           }
                         }
                     } ~
-                    pathPrefix("withdraw") {
-                      post {
-                        complete(s"Withdrawal request by $username")
-                      }
-                    } ~
-                    pathPrefix("deposit") {
-                      post {
-                        complete(s"Deposit request by $username")
-                      }
-                    } ~
-                    pathPrefix("contracts") {
-                      post {
-                        entity(as[String]){
-                          contractSpecJson => {
-                            val contract = new Gson().fromJson(contractSpecJson, classOf[BotContract])
-
-                            UserManagement.addContract(username, contract)
-                            complete("")
+                      pathPrefix("contracts") {
+                        post {
+                          entity(as[String]) {
+                            botContractSpec => {
+                              payload.role match {
+                                case "admin" => complete(s"Deposit request by $username. A record was also added")
+                                case "client" => complete(s"Deposit request by $username")
+                                case _ => complete(HttpResponse(StatusCodes.Unauthorized))
+                              }
+                            }
                           }
                         }
+                      } ~
+                      pathPrefix("books") {
+                        pathPrefix(Segment) {
+                          bookId => {
+                            pathPrefix("records") {
+                              get {
+                                parameters('recordSearchCriteria.as[String]) {
+                                  recordSearchCriteriaJson => {
+                                    val recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson, classOf[RecordSearchCriteria])
+                                    val userId = UserManagement.getByUsername(username)
+                                    recordSearchCriteria.userIds = Some(new util.ArrayList[String](){{userId}})
+                                    val bookName = Accounting.getBookBrief(bookId).name
+                                    recordSearchCriteria.bookNames = Some(new util.ArrayList[String](){{bookName}})
+
+                                    val records = Accounting.getRecords(recordSearchCriteria)
+                                    complete(new Gson().toJson(records))
+                                  }
+                                }
+                              } ~
+                              patch {
+                                entity(as[String]) {
+                                  DWSpecJson => {
+                                    val DWSpec = new Gson().fromJson(DWSpecJson, classOf[DepositWithdrawSpec])
+                                    val userId = UserManagement.getByUsername(username).name
+                                    val balance = Accounting.getBalance(bookId)
+                                    val record = BookRecord(userId, bookId, System.currentTimeMillis(), DWSpec.`type`,DWSpec.source, DWSpec.amount, DWSpec.fee, balance)
+                                    Accounting.addRecord(bookId, record)
+                                    complete("Done")
+                                  }
+                                }
+                              }
+                            }~
+                            pathEnd{
+                              get {
+                                val bookBrief = Accounting.getBookBrief(bookId)
+                                complete(new Gson().toJson(bookBrief))
+                              }
+                            }
+                          }
+                        } ~
+                          pathEnd {
+                            get {
+                              val userId = UserManagement.getByUsername(username).name
+                              val bookBriefs = Accounting.getBookBriefs(userId)
+                              complete(new Gson().toJson(bookBriefs))
+                            }
+                          }
                       }
-                    }
                   }
                 }
             } ~
             pathPrefix("books") {
-              pathPrefix(Segment) {
-                bookId => {
-                  get {
-                    complete(s"Retrieved book $bookId")
-                  } ~
-                    patch {
-                      entity(as[String]) {
-                        bookRecord => {
-                          complete(s"Edited book $bookId. Added record $bookRecord")
-                        }
-                      }
-                    } ~
-                    delete {
-                      complete(s"Deleted book $bookId")
+              pathEnd {
+                get {
+                  parameters('recordSearchCriteria.as[String]) {
+                    recordSearchCriteriaJson => {
+                      val recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson, classOf[RecordSearchCriteria])
+                      val records = Accounting.getRecords(recordSearchCriteria)
+                      complete(new Gson().toJson(records))
                     }
+                  }
                 }
-              } ~
-                pathEnd {
-                  get {
-                    complete("All books fetched")
-                  } ~
-                    post {
-                      complete("Created a new book")
-                    } ~
-                    delete {
-                      complete("Deleted all books")
-                    }
-                }
+              }
             }
         }
     }

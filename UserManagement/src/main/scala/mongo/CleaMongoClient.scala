@@ -2,11 +2,12 @@ package mongo
 
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
+import contracts.BotContract
 import helpers.Helpers
 import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCollection, MongoCredential}
 import org.mongodb.scala.connection.ClusterSettings
 import token_management.Token
-import user_management.{BotContract, User}
+import user_management.User
 
 /**
   * Created by spectrum on 5/14/2018.
@@ -42,5 +43,6 @@ object CleaMongoClient {
 
   def getTokenCollection: MongoCollection[Token] = cleaDB.getCollection("tokens")
   def getUsersCollection: MongoCollection[User] = cleaDB.getCollection("users")
-  def getRecordsCOllectin: MongoCollection[User] = cleaDB.getCollection("bookRecords")
+  def getBooksCollection: MongoCollection[User] = cleaDB.getCollection("books")
+  def getContractsCollection: MongoCollection[User] = cleaDB.getCollection("contracts")
 }
