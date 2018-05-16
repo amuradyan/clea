@@ -2,7 +2,9 @@ package helpers
 
 import java.util.concurrent.TimeUnit
 
+import accounting.Book
 import com.google.gson.Gson
+import contracts.BotContract
 import org.mongodb.scala._
 import token_management.Token
 import user_management.User
@@ -27,6 +29,16 @@ object Helpers {
   implicit class TokenObservable[C](val observable: Observable[Token]) extends ImplicitObservable[Token] {
     val gson = new Gson();
     override val converter: (Token) => String = (doc) => gson.toJson(doc)
+  }
+
+  implicit class BookObservable[C](val observable: Observable[Book]) extends ImplicitObservable[Book] {
+    val gson = new Gson();
+    override val converter: (Book) => String = (doc) => gson.toJson(doc)
+  }
+
+  implicit class BotContractObservable[C](val observable: Observable[BotContract]) extends ImplicitObservable[BotContract] {
+    val gson = new Gson();
+    override val converter: (BotContract) => String = (doc) => gson.toJson(doc)
   }
 
   implicit class GenericObservable[C](val observable: Observable[C]) extends ImplicitObservable[C] {

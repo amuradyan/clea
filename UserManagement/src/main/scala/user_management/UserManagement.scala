@@ -2,14 +2,15 @@ package user_management
 
 import java.util
 
-import accounting.{Accounting, Book, BookBrief}
-import contracts.{BotContract, Contracts}
+import accounting.{Accounting, BookBrief}
+import contracts.{BotContract, BotContractSpec, Contracts}
 import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString}
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString}
 import org.mongodb.scala.model.Filters._
 import token_management.{LoginSpec, TokenManagement}
+
 import collection.JavaConverters._
 
 /**
@@ -37,7 +38,8 @@ case class UserSpec(name: String,
                     phone: String,
                     region: String,
                     role: String,
-                    passwordHash: String)
+                    passwordHash: String,
+                    botContracts: util.ArrayList[BotContractSpec])
 
 object UserExposed {
   def apply(user: User): UserExposed = {
@@ -106,7 +108,13 @@ object UserManagement {
     val newUser = User(userSpec)
 
     usersCollection.insertOne(newUser).results()
-    usersCollection.find(equal("username", userSpec.username)).first().results()(0)
+    val insertedUser = usersCollection.find(equal("username", userSpec.username)).first().results()(0)
+    userSpec.botContracts forEach(Contracts.createContract(insertedUser._id, _))
+
+    Accounting.createBook(insertedUser._id, "Profit")
+    userSpec.botContracts forEach(contract => Accounting.createBook(insertedUser._id, contract.botName))
+
+    insertedUser
   }
 
   def getByUsername(username: String) = {
@@ -145,6 +153,8 @@ object UserManagement {
 
     usersCollection.find(filter).results()
   }
+
+  def changePassword = ???
 
 //  def addContract(username: String, contract: BotContract) = {
 //    var contracts = getByUsername(username).botContracts

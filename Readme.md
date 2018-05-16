@@ -13,7 +13,9 @@ The enitites exposed are *token*, *user* and *book*
 
 The system comes with a predefined user with the following username and password hash:  
 **username** : *admin*   
-**password hash** :  *C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC*
+**password** : *admin*
+
+Front-end **NEVER** send plain passwords to back. It should hash the password with SHA512
 
 ## Bots
 
@@ -171,12 +173,29 @@ curl -X POST \
 
 ### Request withdrawal
 
-The example below shows how to issue a deposit. It contains two notable components, the *by* of the deposit and the *subject* of the deposit. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the withdrawal data
+The example below shows how to issue a withdrawal. It contains two notable components, the *by* of the deposit and the *subject* of the withdrawal. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the withdrawal data
 
 ```
 curl -X POST \
-  http://localhost:8080/users/rick_c18/withdraw \
-  -H 'Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE1MjYyOTQ1OTQxNDQsImV4cCI6MTUyNjI5NDY4MDc2MSwic3ViIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4ifQ.twQ1SpZAcmlLAeU9x4anGFNxCt2POCnJfZrXClVj7EQLNIpplNJgIn9689w_CZUqEa-6hjLOcwTVh0RC1JfJkA' \
+  http://<host>:<port>/users/<username-of-interest>/deposit \
+  -H 'Authorization: <current-jwt-token> \
+  -H 'Cache-Control: no-cache' \
+  -H 'Content-Type: application/json' \
+  -d '{
+	"amount": 1000,
+	"fee": 0,
+	"note": "By trying we can easily learn to endure adversity.  Another man's, I mean."
+}'
+```
+
+### Request deposit
+
+The example below shows how to issue a deposit. It contains two notable components, the *by* of the deposit and the *subject* of the deposit. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the deposit data
+
+```
+curl -X POST \
+  http://<host>:<port>/users/<username-of-interest>/deposit \
+  -H 'Authorization: <current-jwt-token> \
   -H 'Cache-Control: no-cache' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -185,10 +204,6 @@ curl -X POST \
 	"note": "Try to value useful qualities in one who loves you."
 }'
 ```
-
-### Request deposit
-
-The example below shows how to add a bot contract to a user. In this example the users username is captured in **username-of-interest** path variable and the body represents the contract to be added
 
 
 ### Get books

@@ -7,7 +7,9 @@ package mailer
 class Mail(from: String, to: String)
 
 object send {
-  def a(mail: Mail) = ???
+  def a(mail: Mail): MailBuilder = {
+    MailBuilder(mail)
+  }
 }
 
 object reply {
@@ -19,12 +21,15 @@ object reply {
 case class MailBuilder(mail: Mail) {
   def withMessage(message: String): MailBuilder= ???
   def CC(ccEmail: String): MailBuilder = ???
+  def ↪ = ???
+  def ↦ = ???
 }
 
 object Mailer {
   def main(args: Array[String]) {
     val mailFromClient = new Mail("", "")
-    send a new Mail("asd", "asd")
-    reply to mailFromClient withMessage "asd" CC "exo@gmail.com"
+    send a new Mail("asd", "asd") ↦
+
+    reply to mailFromClient withMessage "asd" CC "exo@gmail.com" ↪
   }
 }
