@@ -58,6 +58,7 @@ object Accounting {
       booksCollection.insertOne(Book(userId, bookName)).results()
     }
   }
+
   def getBookBrief(bookId: String): Option[BookBrief] = {
     val rawBooks = booksCollection.find(and(equal("_id", bookId))).first().results()
 
@@ -68,7 +69,14 @@ object Accounting {
 
   }
 
-  def getBalance(bookId: String): Float = ???
+  def getBalance(bookId: String): Float = {
+    val book = getBookBrief(bookId)
+
+    book match {
+      case b: Book => b.getCurrentTotalBalance
+      case _ => 0f
+    }
+  }
 
   def getBookBriefs(userId: String) = {
     val bookBriefs = new util.ArrayList[BookBrief]()

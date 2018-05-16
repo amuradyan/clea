@@ -27,7 +27,7 @@ object Contracts {
   def getContractsOf(userId: String) = {
     val contracts = new util.ArrayList[BotContract]()
     val rawContracts = contractsCollection.find(and(equal("userId", userId))).first().results()
-    if (rawContracts != null && rawContracts.isEmpty)
+    if (rawContracts != null && !rawContracts.isEmpty)
       rawContracts foreach(contracts.add)
 
     contracts
