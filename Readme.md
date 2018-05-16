@@ -173,38 +173,23 @@ curl -X POST \
 
 ### Request withdrawal
 
-The example below shows how to issue a withdrawal. It contains two notable components, the *by* of the deposit and the *subject* of the withdrawal. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the withdrawal data
+The example below shows how to issue a withdrawal. It contains two notable components, the *by* of the deposit and the *subject* of the withdrawal. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the withdrawal data. **transaction-type** can be either deposit or withdraw
 
 ```
-curl -X POST \
-  http://<host>:<port>/users/<username-of-interest>/deposit \
+curl -X PATCH \
+  http://<host>:<port>/users/<username-of-interest>/books/<book-name> \
   -H 'Authorization: <current-jwt-token> \
   -H 'Cache-Control: no-cache' \
   -H 'Content-Type: application/json' \
   -d '{
-	"amount": 1000,
-	"fee": 0,
-	"note": "By trying we can easily learn to endure adversity.  Another man's, I mean."
+	"type": <transaction-type>,
+	"bookId": <book-name>,
+	"source": <username-of-interest>,
+	"amount": 100,
+	"fee":100,
+	"note": "edrftyuio"
 }'
 ```
-
-### Request deposit
-
-The example below shows how to issue a deposit. It contains two notable components, the *by* of the deposit and the *subject* of the deposit. In this example the *subject* is captured in **username-of-interest** path variable, the *by* is dedued from the token and the body represents the deposit data
-
-```
-curl -X POST \
-  http://<host>:<port>/users/<username-of-interest>/deposit \
-  -H 'Authorization: <current-jwt-token> \
-  -H 'Cache-Control: no-cache' \
-  -H 'Content-Type: application/json' \
-  -d '{
-	"amount": 1000,
-	"fee": 0,
-	"note": "Try to value useful qualities in one who loves you."
-}'
-```
-
 
 ### Get books
 

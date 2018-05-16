@@ -27,6 +27,7 @@ object Contracts {
   def getContractsOf(userId: String) = {
     val contracts = new util.ArrayList[BotContract]()
     val rawContracts = contractsCollection.find(and(equal("userId", userId))).first().results()
+
     if (rawContracts != null && !rawContracts.isEmpty)
       rawContracts foreach(contracts.add)
 
@@ -43,4 +44,6 @@ object Contracts {
 
   def deleteContract(userId: String, contractSpec: BotContractSpec) =
     contractsCollection.deleteOne(and(equal("userId", userId), equal("botName", contractSpec.botName))).results()
+
+  def deleteContracts(username: String) = contractsCollection.deleteMany(equal("userId", username)).results()
 }

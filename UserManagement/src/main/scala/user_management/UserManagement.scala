@@ -11,8 +11,6 @@ import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString}
 import org.mongodb.scala.model.Filters._
 import token_management.{LoginSpec, TokenManagement}
 
-import collection.JavaConverters._
-
 /**
   * Created by spectrum on 5/14/2018.
   */
@@ -43,11 +41,16 @@ case class UserSpec(name: String,
 
 object UserExposed {
   def apply(user: User): UserExposed = {
-    val botContracts = Contracts.getContractsOf(user._id)
-    val bookBriefs = Accounting.getBookBriefs(user._id)
+    val botContracts = Contracts.getContractsOf(user.username)
+    val bookBriefs = Accounting.getBookBriefs(user.username)
 
     new UserExposed(user.name, user.surname, user.username, user.email, user.phone, user.region, user.role,
       botContracts, bookBriefs)
+  }
+
+  def apply(username: String): UserExposed = {
+    val user = UserManagement.getByUsername(username)
+    UserExposed(user)
   }
 }
 
@@ -62,6 +65,7 @@ case class UserExposed(name: String,
                        bookBriefs: util.ArrayList[BookBrief])
 
 case class UserSearchCriteria(userIds: Option[List[String]] = None, region: Option[String] = None)
+
 
 
 object UserManagement {
@@ -85,7 +89,7 @@ object UserManagement {
 
     if (talisants.isEmpty) {
       usersCollection.insertOne(talisant).results()
-      Accounting.createBook(talisant._id, "profit")
+      Accounting.createBook(talisant.username, "profit")
     }
   }
 
@@ -109,10 +113,10 @@ object UserManagement {
 
     usersCollection.insertOne(newUser).results()
     val insertedUser = usersCollection.find(equal("username", userSpec.username)).first().results()(0)
-    userSpec.botContracts forEach(Contracts.createContract(insertedUser._id, _))
+    userSpec.botContracts.forEach(Contracts.createContract(insertedUser.username, _))
 
-    Accounting.createBook(insertedUser._id, "Profit")
-    userSpec.botContracts forEach(contract => Accounting.createBook(insertedUser._id, contract.botName))
+    Accounting.createBook(insertedUser.username, "Profit")
+    userSpec.botContracts forEach(contract => Accounting.createBook(userSpec.username, contract.botName))
 
     insertedUser
   }
@@ -124,6 +128,8 @@ object UserManagement {
   // delete user
   def deleteUser(username: String) = {
     usersCollection.deleteOne(equal("username", username)).results()
+    Accounting.deleteBooks(username)
+    Contracts.deleteContracts(username)
   }
 
   // update user

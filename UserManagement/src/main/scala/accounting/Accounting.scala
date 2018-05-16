@@ -60,7 +60,7 @@ object Accounting {
   }
 
   def getBookBrief(bookId: String): Option[BookBrief] = {
-    val rawBooks = booksCollection.find(and(equal("_id", bookId))).first().results()
+    val rawBooks = booksCollection.find(and(equal("name", bookId))).first().results()
 
     if (rawBooks != null && rawBooks.isEmpty)
       Some(BookBrief(rawBooks(0)))
@@ -87,6 +87,8 @@ object Accounting {
 
     bookBriefs
   }
+
+  def deleteBooks(username: String) = booksCollection.deleteMany(equal("owner", username)).results()
 
   def getRecords(recordSearchCriteria: RecordSearchCriteria) = ???
   def addRecord(bookId: String, record: BookRecord) = ???

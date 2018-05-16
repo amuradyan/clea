@@ -20,6 +20,8 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import java.util
 
+import contracts.Contracts
+
 /**
   * Created by spectrum on 5/2/2018.
   */
@@ -110,7 +112,7 @@ object Clea extends App with CorsSupport {
                         logger.info(userSpecJson)
                         val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
                         val newUser = UserManagement.createUser(userSpec)
-                        complete(new Gson().toJson(UserExposed(newUser)))
+                        complete(new Gson().toJson(UserExposed(newUser.username)))
                       } else {
                         complete(HttpResponse(StatusCodes.Unauthorized))
                       }
@@ -150,8 +152,7 @@ object Clea extends App with CorsSupport {
                   corsHandler {
                     get {
                       val jwtPayload = TokenManagement.decode(token)
-                      val user = UserManagement.getByUsername(jwtPayload.sub)
-                      complete(new Gson().toJson(UserExposed(user)))
+                      complete(new Gson().toJson(UserExposed(jwtPayload.sub)))
                     }
                   }
                 } ~
@@ -168,23 +169,23 @@ object Clea extends App with CorsSupport {
                   pathEnd {
                     corsHandler {
                       get {
+                        logger.info(s"User $username accessed by ${payload.role}")
                         payload.role match {
                           case "admin" => {
-                            logger.info(UserExposed(UserManagement.getByUsername(username)).toString)
-                            complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
+                            complete(new Gson().toJson(UserExposed(username)))
                           }
                           case "manager" => {
                             val user = UserManagement.getByUsername(username)
                             val manager = UserManagement.getByUsername(payload.sub)
 
                             if (manager.region.equalsIgnoreCase(user.region))
-                              complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
+                              complete(new Gson().toJson(UserExposed(username)))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
                           case "client" => {
                             if (payload.sub.equalsIgnoreCase(username))
-                              complete(new Gson().toJson(UserExposed(UserManagement.getByUsername(username))))
+                              complete(new Gson().toJson(UserExposed(username)))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
@@ -205,10 +206,12 @@ object Clea extends App with CorsSupport {
                           entity(as[String]) {
                             userUpdateSpecJson => {
                               if (payload.sub.equalsIgnoreCase("admin")) {
+                                logger.info(s"User $username patched by ${payload.sub}")
                                 val userUpdateDoc = BsonDocument(userUpdateSpecJson)
-                                complete(new Gson().toJson(UserExposed(UserManagement.updateUser(username, userUpdateDoc))))
+                                UserManagement.updateUser(username, userUpdateDoc)
+                                complete(new Gson().toJson(UserExposed(username)))
                               } else
-                                complete(HttpResponse(StatusCodes.Unauthorized))
+                                complete(HttpResponse(StatusCodes.OK))
                             }
                           }
                         }
@@ -227,7 +230,13 @@ object Clea extends App with CorsSupport {
                             }
                           }
                         }
-                      }
+                      } ~
+                        corsHandler {
+                          get {
+                            val contracts = Contracts.getContractsOf(username)
+                            complete(new Gson().toJson(contracts))
+                          }
+                        }
                     } ~
                     pathPrefix("books") {
                       pathPrefix(Segment) {
@@ -240,11 +249,11 @@ object Clea extends App with CorsSupport {
                                     val recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson, classOf[RecordSearchCriteria])
                                     val userId = UserManagement.getByUsername(username)
                                     recordSearchCriteria.userIds = Some(new util.ArrayList[String]() {
-                                        userId
+                                      userId
                                     })
                                     val bookName = Accounting.getBookBrief(bookId).getOrElse("")
                                     recordSearchCriteria.bookNames = Some(new util.ArrayList[String]() {
-                                        bookName
+                                      bookName
                                     })
 
                                     val records = Accounting.getRecords(recordSearchCriteria)
