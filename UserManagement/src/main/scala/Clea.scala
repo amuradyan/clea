@@ -5,7 +5,8 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpEntity, _}
+import akka.http.scaladsl.server.ContentNegotiator.Alternative.ContentType
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
 import akka.stream.ActorMaterializer
@@ -70,7 +71,7 @@ object Clea extends App with CorsSupport {
                 user match {
                   case Some(token) => {
                     logger.info(s"${loginSpec.username} logged in")
-                    complete(token)
+                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, token)))
                   }
                   case None =>
                     complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
@@ -114,7 +115,8 @@ object Clea extends App with CorsSupport {
                         logger.info(userSpecJson)
                         val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
                         val newUser = UserManagement.createUser(userSpec)
-                        complete(new Gson().toJson(UserExposed(newUser.username)))
+                        val res = new Gson().toJson(UserExposed(newUser.username))
+                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                       } else {
                         complete(HttpResponse(StatusCodes.Unauthorized))
                       }
@@ -142,7 +144,8 @@ object Clea extends App with CorsSupport {
                           }
                         }
 
-                        complete(new Gson().toJson(allUsers.toArray))
+                        val res = new Gson().toJson(allUsers.toArray)
+                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                       }
                     }
                   }
@@ -153,7 +156,8 @@ object Clea extends App with CorsSupport {
                   corsHandler {
                     get {
                       val jwtPayload = TokenManagement.decode(token)
-                      complete(new Gson().toJson(UserExposed(jwtPayload.sub)))
+                      val res = new Gson().toJson(UserExposed(jwtPayload.sub))
+                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                     }
                   }
                 }
@@ -165,25 +169,28 @@ object Clea extends App with CorsSupport {
                     corsHandler {
                       get {
                         logger.info(s"User $username accessed by ${payload.role}")
+                        var res = ""
                         payload.role match {
                           case "admin" => {
-                            complete(new Gson().toJson(UserExposed(username)))
+                            res = new Gson().toJson(UserExposed(username))
                           }
                           case "manager" => {
                             val manager = UserManagement.getByUsername(payload.sub)
 
                             if (manager.region.equalsIgnoreCase(user.region))
-                              complete(new Gson().toJson(UserExposed(username)))
+                              res = new Gson().toJson(UserExposed(username))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
                           case "client" => {
                             if (payload.sub.equalsIgnoreCase(username))
-                              complete(new Gson().toJson(UserExposed(username)))
+                              res = new Gson().toJson(UserExposed(username))
                             else
                               complete(HttpResponse(StatusCodes.Unauthorized))
                           }
                         }
+
+                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                       }
                     } ~
                       corsHandler {
@@ -201,7 +208,8 @@ object Clea extends App with CorsSupport {
                             userUpdateSpecJson => {
                               if (payload.sub.equalsIgnoreCase("admin")) {
                                 UserManagement.updateUser(username, new Gson().fromJson(userUpdateSpecJson, classOf[UserUpdateSpec]))
-                                complete(new Gson().toJson(UserExposed(username)))
+                                val res = new Gson().toJson(UserExposed(username))
+                                complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                               } else
                                 complete(HttpResponse(StatusCodes.OK))
                             }
@@ -261,14 +269,16 @@ object Clea extends App with CorsSupport {
                               case "manager" => {
                                 if (payload.region.equals(user.region)) {
                                   val contracts = Contracts.getContractsOf(username)
-                                  complete(new Gson().toJson(contracts))
+                                  val res = new Gson().toJson(contracts)
+                                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                 } else
                                   complete(HttpResponse(StatusCodes.Unauthorized))
                               }
                               case "client" => {
                                 if (payload.sub.equals(username)) {
                                   val contracts = Contracts.getContractsOf(username)
-                                  complete(new Gson().toJson(contracts))
+                                  val res = new Gson().toJson(contracts)
+                                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                 } else
                                   complete(HttpResponse(StatusCodes.Unauthorized))
                               }
@@ -298,7 +308,8 @@ object Clea extends App with CorsSupport {
                                       recordSearchCriteria.userIds = Some(List(username))
 
                                       val records = Accounting.getRecords(recordSearchCriteria)
-                                      complete(new Gson().toJson(records))
+                                      val res = new Gson().toJson(records)
+                                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                     } else {
                                       complete(HttpResponse(StatusCodes.Unauthorized))
                                     }
@@ -318,7 +329,8 @@ object Clea extends App with CorsSupport {
                                           val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee, balance)
                                           val book = Accounting.addRecord(bookId, record)
                                           Mailer.sendDWReply(username, DWSpec)
-                                          complete(new Gson().toJson(book))
+                                          val res = new Gson().toJson(book)
+                                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                         }
                                         case "client" => {
                                           Mailer.sendDWRequest(username, DWSpec)
@@ -338,7 +350,10 @@ object Clea extends App with CorsSupport {
                                   {
                                     val book = Accounting.getBook(bookId)
                                     book match {
-                                    case Some(b) => complete(new Gson().toJson(book))
+                                    case Some(b) => {
+                                      val res = new Gson().toJson(book)
+                                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                    }
                                     case None => complete(HttpResponse(StatusCodes.NotFound))
                                   }
                                   } else
@@ -353,7 +368,8 @@ object Clea extends App with CorsSupport {
                             get {
                               if (payload.role.equals("admin")) {
                                 val bookBriefs = Accounting.getBooks(username)
-                                complete(new Gson().toJson(bookBriefs))
+                                val res = new Gson().toJson(bookBriefs)
+                                complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                               } else
                                 complete(HttpResponse(StatusCodes.Unauthorized))
                             }
@@ -387,7 +403,8 @@ object Clea extends App with CorsSupport {
                       }
 
                       val records = Accounting.getRecords(recordSearchCriteria)
-                      complete(new Gson().toJson(records))
+                      val res = new Gson().toJson(records)
+                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                     }
                   }
                 }
@@ -416,8 +433,8 @@ object Clea extends App with CorsSupport {
                   val recordsJava = new util.ArrayList[BookRecord]()
                   records foreach {e => recordsJava.add(e)};
                   logger.info(s"${records.length} records found")
-
-                  complete(new Gson().toJson(recordsJava))
+                  val res = new Gson().toJson(recordsJava)
+                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                 }
               }
             }
