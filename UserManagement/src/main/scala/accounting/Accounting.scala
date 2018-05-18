@@ -27,7 +27,7 @@ case class BookRecord(userId: String,
                       source: String,
                       amount: Float,
                       fee: Float,
-                      var currentBalance: Float)
+                      var currentBalance: Float = 0f)
 
 case class RecordSearchCriteria(var bookNames: Option[List[String]] = None,
                                 var dateFrom: Option[Long] = None,
@@ -63,31 +63,40 @@ object Accounting {
   val booksCollection = CleaMongoClient.getBooksCollection
   val recordsCollection = CleaMongoClient.getBookRecordsCollection
 
-  def createBook(userId: String, bookName: String) = {
-    val books = booksCollection.find(and(equal("owner", userId), equal("name", bookName))).first().results()
+  def createBook(username: String, name: String) = {
+    val books = booksCollection.find(and(equal("owner", username), equal("name", name))).first().results()
 
     if (books != null && books.isEmpty) {
-      booksCollection.insertOne(Book(userId, bookName)).results()
+      booksCollection.insertOne(Book(username, name)).results()
     }
   }
 
-  def getBook(bookName: String): Option[BookModel] = {
-    val rawBooks = booksCollection.find(and(equal("name", bookName))).first().results()
+  def getBook(username: String, name: String): Option[BookModel] = {
+    val rawBooks = booksCollection.find(and(equal("name", name), equal("owner", username))).first().results()
 
     if (rawBooks != null && !rawBooks.isEmpty) {
       val book = rawBooks(0)
-      val records = recordsCollection.find(and(equal("userId", book.owner), equal("bookId", bookName))).results()
+      val records = recordsCollection.find(and(equal("userId", book.owner), equal("bookId", name))).results()
 
       if (records != null)
         Some(BookModel(book, records.toList))
       else None
 
     } else None
-
   }
 
-  def getBookBrief(bookId: String) = {
-    val rawBooks = booksCollection.find(and(equal("name", bookId))).first().results()
+  def getBooksByName(name: String) = {
+    var books = Seq[Book]()
+    val rawBooks = booksCollection.find(equal("name", name)).first().results()
+
+    if(rawBooks != null)
+      books = rawBooks
+
+    books
+  }
+
+  def getBookBrief(username: String, name: String) = {
+    val rawBooks = booksCollection.find(and(equal("owner", username), equal("name", name))).first().results()
 
     if (rawBooks != null && !rawBooks.isEmpty)
       Some(BookBrief(rawBooks(0)))
@@ -95,8 +104,8 @@ object Accounting {
       None
   }
 
-  def getBalance(bookId: String): Float = {
-    val book = getBookBrief(bookId)
+  def getBalance(username: String, name: String): Float = {
+    val book = getBookBrief(username, name)
 
     book match {
       case b: Book => b.balance

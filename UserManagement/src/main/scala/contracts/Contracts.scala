@@ -35,12 +35,18 @@ object Contracts {
     contracts
   }
 
-  def createContract(userId: String, contractSpec: BotContractSpec) = {
+  def getContractByBot(botName: String) = contractsCollection.find(equal("botName", botName)).results()
+
+  def getContract(username: String, botName: String) = {
+    contractsCollection.find(and(equal("userId", username), equal("botName", botName))).first().results()(0)
+  }
+
+  def createContract(username: String, contractSpec: BotContractSpec) = {
       val contracts =
-        contractsCollection.find(and(equal("userId", userId), equal("botName", contractSpec.botName))).first().results()
+        contractsCollection.find(and(equal("userId", username), equal("botName", contractSpec.botName))).first().results()
 
       if( contracts != null && contracts.isEmpty )
-        contractsCollection.insertOne(BotContract(userId, contractSpec)).results()
+        contractsCollection.insertOne(BotContract(username, contractSpec)).results()
 
     val talisantContracts =
       contractsCollection.find(and(equal("userId", "talisant"), equal("botName", contractSpec.botName))).results()
@@ -48,15 +54,34 @@ object Contracts {
     if(talisantContracts != null && !talisantContracts.isEmpty) {
       val contract = talisantContracts(0)
       contract.profitMargin = contract.profitMargin + (1 - contractSpec.profitMargin)
-      contractsCollection.replaceOne(and(equal("userId", userId), equal("botName", contractSpec.botName)),
+      contractsCollection.replaceOne(and(equal("userId", username), equal("botName", contractSpec.botName)),
         contract, new UpdateOptions().upsert(true))
     } else {
       contractsCollection.insertOne(BotContract("talisant", BotContractSpec(contractSpec.botName, (1 - contractSpec.profitMargin)))).results()
     }
   }
 
-  def deleteContract(userId: String, contractSpec: BotContractSpec) =
-    contractsCollection.deleteOne(and(equal("userId", userId), equal("botName", contractSpec.botName))).results()
+  def deleteContract(username: String, botName: String) = {
+    val userContracts = contractsCollection.find(and(equal("userId", username), equal("botName", botName))).results()
 
-  def deleteContracts(username: String) = contractsCollection.deleteMany(equal("userId", username)).results()
+    if(userContracts != null && !userContracts.isEmpty){
+      val userContract = userContracts(0)
+      contractsCollection.deleteOne(and(equal("userId", username), equal("botName", botName))).results()
+      val contracts = contractsCollection.find(and(equal("userId", "talisant"), equal("botName", botName))).results()
+
+      if (contracts != null && !contracts.isEmpty) {
+        val contract = contracts(0)
+        contract.profitMargin = contract.profitMargin - (1 - userContract.profitMargin)
+        contractsCollection.replaceOne(and(equal("userId", "talisant"), equal("botName", botName)), contract, new UpdateOptions().upsert(true))
+      }
+    }
+  }
+
+  def deleteContracts(username: String) = {
+    val userContracts = contractsCollection.find(equal("userId", username)).results()
+
+    if(userContracts != null){
+      userContracts foreach {c => deleteContract(username, c.botName)}
+    }
+  }
 }

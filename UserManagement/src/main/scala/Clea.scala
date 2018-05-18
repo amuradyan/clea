@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.{HttpEntity, _}
-import akka.http.scaladsl.server.ContentNegotiator.Alternative.ContentType
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
 import akka.stream.ActorMaterializer
@@ -15,11 +14,11 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
 import token_management.{JWTPayload, LoginSpec, TokenManagement}
 import user_management._
-import helpers.CorsSupport
+import helpers.{CorsSupport, Fetcher}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-import contracts.{BotContractSpec, Contracts}
+import contracts.{BotContract, BotContractSpec, Contracts}
 import mailer.Mailer
 
 /**
@@ -51,6 +50,7 @@ object Clea extends App with CorsSupport {
   implicit val executionCtx = actorSystem.dispatcher
   implicit val materializer = ActorMaterializer()
 
+  Fetcher.setup
   UserManagement.setup
 
   val route = {
@@ -265,24 +265,26 @@ object Clea extends App with CorsSupport {
                       } ~
                         corsHandler {
                           get {
+                            var contracts = new util.ArrayList[BotContract]()
                             payload.role match {
+                              case "admin" => contracts = Contracts.getContractsOf(username)
                               case "manager" => {
-                                if (payload.region.equals(user.region)) {
-                                  val contracts = Contracts.getContractsOf(username)
-                                  val res = new Gson().toJson(contracts)
-                                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                                } else
+                                if (payload.region.equals(user.region))
+                                  contracts = Contracts.getContractsOf(username)
+                                else
                                   complete(HttpResponse(StatusCodes.Unauthorized))
                               }
                               case "client" => {
-                                if (payload.sub.equals(username)) {
-                                  val contracts = Contracts.getContractsOf(username)
-                                  val res = new Gson().toJson(contracts)
-                                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                                } else
+                                if (payload.sub.equals(username))
+                                  contracts = Contracts.getContractsOf(username)
+                                else
                                   complete(HttpResponse(StatusCodes.Unauthorized))
                               }
+                              case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                             }
+
+                            val res = new Gson().toJson(contracts)
+                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                           }
                         }
                     } ~
@@ -348,7 +350,7 @@ object Clea extends App with CorsSupport {
                                   if (payload.sub.equals(username) || payload.role.equals("admin") ||
                                     (payload.role.equals("manager") && payload.region.equals(user.region)))
                                   {
-                                    val book = Accounting.getBook(bookId)
+                                    val book = Accounting.getBook(username, bookId)
                                     book match {
                                     case Some(b) => {
                                       val res = new Gson().toJson(book)
