@@ -1,26 +1,26 @@
+import java.util
+
 import accounting.{Accounting, BookRecord, DepositWithdrawSpec, RecordSearchCriteria}
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`, _}
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
 import akka.stream.ActorMaterializer
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
-import org.mongodb.scala.bson.BsonDocument
 import token_management.{JWTPayload, LoginSpec, TokenManagement}
 import user_management._
 import helpers.CorsSupport
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-import java.util
-
-import contracts.Contracts
+import contracts.{BotContractSpec, Contracts}
+import mailer.Mailer
 
 /**
   * Created by spectrum on 5/2/2018.
@@ -65,13 +65,16 @@ object Clea extends App with CorsSupport {
           pathEnd {
             post {
               entity(as[String]) { loginSpecJson => {
-                logger.info("Commencing login")
                 val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
                 val user = UserManagement.login(loginSpec)
 
                 user match {
-                  case Some(token) => complete(token)
-                  case None => complete("Invalid username/password")
+                  case Some(token) => {
+                    logger.info(s"${loginSpec.username} logged in")
+                    complete(token)
+                  }
+                  case None =>
+                    complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                 }
               }
               }
@@ -98,7 +101,7 @@ object Clea extends App with CorsSupport {
           corsHandler {
             delete {
               UserManagement.logout(token)
-              complete("Commencing logout")
+              complete(s"${payload.sub} logged out")
             }
           }
         } ~
@@ -124,22 +127,21 @@ object Clea extends App with CorsSupport {
                   get {
                     import CsvParameters._
 
-                    parameters('users.as[List[String]].?, 'region.as[String].?) {
-                      (users, region) => {
+                    parameters('users.as[List[String]].?, 'regions.as[List[String]].?) {
+                      (users, regions) => {
                         var allUsers = Seq[UserExposed]()
                         payload.role match {
                           case "admin" =>
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, region)).map(UserExposed(_))
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, regions)).map(UserExposed(_))
                           case "manager" => {
-                            val user = UserManagement.getByUsername(payload.sub)
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, Some(user.region))).map(UserExposed(_))
+                            val requestor = UserManagement.getByUsername(payload.sub)
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, Some(List(requestor.region)))).map(UserExposed(_))
                           }
                           case "client" => {
-                            val user = UserManagement.getByUsername(payload.sub)
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(Some(List(user.username)), None)).map(UserExposed(_))
+                            val requestor = UserManagement.getByUsername(payload.sub)
+                            allUsers = UserManagement.getUsers(UserSearchCriteria(Some(List(requestor.username)), None)).map(UserExposed(_))
                           }
                         }
-
 
                         complete(new Gson().toJson(allUsers.toArray))
                       }
@@ -155,17 +157,11 @@ object Clea extends App with CorsSupport {
                       complete(new Gson().toJson(UserExposed(jwtPayload.sub)))
                     }
                   }
-                } ~
-                  pathPrefix("password") {
-                    corsHandler {
-                      patch {
-                        complete("Password reset request sent")
-                      }
-                    }
-                  }
+                }
               } ~
               pathPrefix(Segment) {
                 username => {
+                  val user = UserManagement.getByUsername(username)
                   pathEnd {
                     corsHandler {
                       get {
@@ -175,7 +171,6 @@ object Clea extends App with CorsSupport {
                             complete(new Gson().toJson(UserExposed(username)))
                           }
                           case "manager" => {
-                            val user = UserManagement.getByUsername(username)
                             val manager = UserManagement.getByUsername(payload.sub)
 
                             if (manager.region.equalsIgnoreCase(user.region))
@@ -206,9 +201,7 @@ object Clea extends App with CorsSupport {
                           entity(as[String]) {
                             userUpdateSpecJson => {
                               if (payload.sub.equalsIgnoreCase("admin")) {
-                                logger.info(s"User $username patched by ${payload.sub}")
-                                val userUpdateDoc = BsonDocument(userUpdateSpecJson)
-                                UserManagement.updateUser(username, userUpdateDoc)
+                                UserManagement.updateUser(username, new Gson().fromJson(userUpdateSpecJson, classOf[UserUpdateSpec]))
                                 complete(new Gson().toJson(UserExposed(username)))
                               } else
                                 complete(HttpResponse(StatusCodes.OK))
@@ -217,14 +210,30 @@ object Clea extends App with CorsSupport {
                         }
                       }
                   } ~
+                    pathPrefix("password") {
+                      corsHandler {
+                        patch {
+                          complete("Password reset request sent")
+                        }
+                      }
+                    } ~
                     pathPrefix("contracts") {
                       corsHandler {
                         post {
                           entity(as[String]) {
-                            botContractSpec => {
+                            botContractSpecJson => {
+                              val botContractSpec = new Gson().fromJson(botContractSpecJson, classOf[BotContractSpec])
+
                               payload.role match {
-                                case "admin" => complete(s"Deposit request by $username. A record was also added")
-                                case "client" => complete(s"Deposit request by $username")
+                                case "admin" => {
+                                  Contracts.createContract(username, botContractSpec)
+                                  Mailer.sendAddContractReply(username, botContractSpec)
+                                  complete(s"Deposit request by $username. A record was also added")
+                                }
+                                case "client" => {
+                                  Mailer.sendAddContractRequest(username, botContractSpec)
+                                  complete(s"Deposit request by $username")
+                                }
                                 case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                               }
                             }
@@ -233,8 +242,22 @@ object Clea extends App with CorsSupport {
                       } ~
                         corsHandler {
                           get {
-                            val contracts = Contracts.getContractsOf(username)
-                            complete(new Gson().toJson(contracts))
+                            payload.role match {
+                              case "manager" => {
+                                if (payload.region.equals(user.region)) {
+                                  val contracts = Contracts.getContractsOf(username)
+                                  complete(new Gson().toJson(contracts))
+                                } else
+                                  complete(HttpResponse(StatusCodes.Unauthorized))
+                              }
+                              case "client" => {
+                                if (payload.sub.equals(username)) {
+                                  val contracts = Contracts.getContractsOf(username)
+                                  complete(new Gson().toJson(contracts))
+                                } else
+                                  complete(HttpResponse(StatusCodes.Unauthorized))
+                              }
+                            }
                           }
                         }
                     } ~
@@ -244,34 +267,49 @@ object Clea extends App with CorsSupport {
                           pathPrefix("records") {
                             corsHandler {
                               get {
-                                parameters('recordSearchCriteria.as[String]) {
+                                parameters('recordSearchCriteria.as[String].?) {
                                   recordSearchCriteriaJson => {
-                                    val recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson, classOf[RecordSearchCriteria])
-                                    val userId = UserManagement.getByUsername(username)
-                                    recordSearchCriteria.userIds = Some(new util.ArrayList[String]() {
-                                      userId
-                                    })
-                                    val bookName = Accounting.getBookBrief(bookId).getOrElse("")
-                                    recordSearchCriteria.bookNames = Some(new util.ArrayList[String]() {
-                                      bookName
-                                    })
+                                    if (payload.sub.equals(username) || payload.role.equals("admin") ||
+                                      (payload.role.equals("manager") && payload.region.equals(user.region))) {
+                                      var recordSearchCriteria = RecordSearchCriteria()
 
-                                    val records = Accounting.getRecords(recordSearchCriteria)
-                                    complete(new Gson().toJson(records))
+                                      recordSearchCriteriaJson match {
+                                        case Some(criteria) =>
+                                          recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+                                        case None => ;
+                                      }
+
+                                      recordSearchCriteria.bookNames = Some(List(bookId))
+                                      recordSearchCriteria.userIds = Some(List(username))
+
+                                      val records = Accounting.getRecords(recordSearchCriteria)
+                                      complete(new Gson().toJson(records))
+                                    } else {
+                                      complete(HttpResponse(StatusCodes.Unauthorized))
+                                    }
                                   }
                                 }
                               }
                             } ~
                               corsHandler {
-                                patch {
+                                post {
                                   entity(as[String]) {
                                     DWSpecJson => {
                                       val DWSpec = new Gson().fromJson(DWSpecJson, classOf[DepositWithdrawSpec])
-                                      val userId = UserManagement.getByUsername(username).name
-                                      val balance = Accounting.getBalance(bookId)
-                                      val record = BookRecord(userId, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee, balance)
-                                      Accounting.addRecord(bookId, record)
-                                      complete("Done")
+
+                                      payload.role match {
+                                        case "admin" => {
+                                          val balance = Accounting.getBalance(bookId)
+                                          val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee, balance)
+                                          val book = Accounting.addRecord(bookId, record)
+                                          Mailer.sendDWReply(username, DWSpec)
+                                          complete(new Gson().toJson(book))
+                                        }
+                                        case "client" => {
+                                          Mailer.sendDWRequest(username, DWSpec)
+                                          complete(s"${DWSpec.`type`} request sent")
+                                        }
+                                      }
                                     }
                                   }
                                 }
@@ -280,8 +318,16 @@ object Clea extends App with CorsSupport {
                             pathEnd {
                               corsHandler {
                                 get {
-                                  val bookBrief = Accounting.getBookBrief(bookId)
-                                  complete(new Gson().toJson(bookBrief))
+                                  if (payload.sub.equals(username) || payload.role.equals("admin") ||
+                                    (payload.role.equals("manager") && payload.region.equals(user.region)))
+                                  {
+                                    val book = Accounting.getBook(bookId)
+                                    book match {
+                                    case Some(b) => complete(new Gson().toJson(book))
+                                    case None => complete(HttpResponse(StatusCodes.NotFound))
+                                  }
+                                  } else
+                                    complete(HttpResponse(StatusCodes.Unauthorized))
                                 }
                               }
                             }
@@ -290,9 +336,11 @@ object Clea extends App with CorsSupport {
                         pathEnd {
                           corsHandler {
                             get {
-                              val userId = UserManagement.getByUsername(username).name
-                              val bookBriefs = Accounting.getBookBriefs(userId)
-                              complete(new Gson().toJson(bookBriefs))
+                              if (payload.role.equals("admin")) {
+                                val bookBriefs = Accounting.getBooks(username)
+                                complete(new Gson().toJson(bookBriefs))
+                              } else
+                                complete(HttpResponse(StatusCodes.Unauthorized))
                             }
                           }
                         }
@@ -305,13 +353,56 @@ object Clea extends App with CorsSupport {
             pathEnd {
               corsHandler {
                 get {
-                  parameters('recordSearchCriteria.as[String]) {
+                  parameters('recordSearchCriteria.as[String].?) {
                     recordSearchCriteriaJson => {
-                      val recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson, classOf[RecordSearchCriteria])
+                      var recordSearchCriteria = RecordSearchCriteria()
+                      val requestor = UserManagement.getByUsername(payload.sub)
+
+                      recordSearchCriteriaJson match {
+                        case Some(criteria) => {
+                          recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+                        }
+                        case None => ;
+                      }
+
+                      payload.sub match {
+                        case "manager" => recordSearchCriteria.region = Some(requestor.region)
+                        case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+                        case _ => ;
+                      }
+
                       val records = Accounting.getRecords(recordSearchCriteria)
                       complete(new Gson().toJson(records))
                     }
                   }
+                }
+              }
+            } ~
+            pathPrefix("records") {
+              parameters('recordSearchCriteria.as[String].?) {
+                recordSearchCriteriaJson => {
+                  var recordSearchCriteria = RecordSearchCriteria()
+                  val requestor = UserManagement.getByUsername(payload.sub)
+
+                  recordSearchCriteriaJson match {
+                    case Some(criteria) => {
+                      recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+                    }
+                    case None => ;
+                  }
+
+                  payload.sub match {
+                    case "manager" => recordSearchCriteria.region = Some(requestor.region)
+                    case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+                    case _ => ;
+                  }
+
+                  val records = Accounting.getRecords(recordSearchCriteria)
+                  val recordsJava = new util.ArrayList[BookRecord]()
+                  records foreach {e => recordsJava.add(e)};
+                  logger.info(s"${records.length} records found")
+
+                  complete(new Gson().toJson(recordsJava))
                 }
               }
             }

@@ -1,5 +1,11 @@
 package mailer
 
+import java.util
+
+import accounting.{BookRecord, DepositWithdrawSpec}
+import contracts.BotContractSpec
+import user_management.{PasswordResetSpec, UserUpdateSpec}
+
 /**
   * Created by spectrum on 5/14/2018.
   */
@@ -25,11 +31,22 @@ case class MailBuilder(mail: Mail) {
   def ↦ = ???
 }
 
-object Mailer {
+object MailerEngine {
   def main(args: Array[String]) {
     val mailFromClient = new Mail("", "")
     send a new Mail("asd", "asd") ↦
 
     reply to mailFromClient withMessage "asd" CC "exo@gmail.com" ↪
   }
+}
+
+object Mailer {
+  def sendDWRequest(username: String, DWSpec: DepositWithdrawSpec) = {}
+  def sendDWReply(username: String, DWSpec: DepositWithdrawSpec) = {}
+  def sendPasswordResetRequest(username: String, userUpdateSpec: PasswordResetSpec) = {}
+  def sendPasswordResetReply(username: String, userUpdateSpec: PasswordResetSpec) = {}
+  def sendAddContractRequest(username: String, botContractSpec: BotContractSpec) = {}
+  def sendAddContractReply(username: String, botContractSpec: BotContractSpec) = {}
+  def sendDataChangeRequest(username: String, userUpdateSpec: UserUpdateSpec) = {}
+  def sendDataChangeReply(username: String, userUpdateSpec: UserUpdateSpec) = {}
 }

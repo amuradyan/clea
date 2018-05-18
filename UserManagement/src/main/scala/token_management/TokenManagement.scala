@@ -15,7 +15,7 @@ import user_management.User
 
 case class Token(_id: String, token: String)
 case class LoginSpec(username: String, passwordHash: String)
-case class JWTPayload(iat: Long, exp: Long, sub: String, role: String)
+case class JWTPayload(iat: Long, exp: Long, sub: String, role: String, region: String)
 
 class TokenManagement
 object TokenManagement {
@@ -33,6 +33,7 @@ object TokenManagement {
     claim = claim +("exp", System.currentTimeMillis() + 86400)
     claim = claim +("sub", user.username)
     claim = claim +("role", user.role)
+    claim = claim +("region", user.region)
 
     Jwt.encode(header, claim, secret_key)
   }

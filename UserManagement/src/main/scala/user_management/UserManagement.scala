@@ -3,13 +3,16 @@ package user_management
 import java.util
 
 import accounting.{Accounting, BookBrief}
+import com.mongodb.client.model.UpdateOptions
 import contracts.{BotContract, BotContractSpec, Contracts}
 import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString}
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString, conversions}
 import org.mongodb.scala.model.Filters._
 import token_management.{LoginSpec, TokenManagement}
+
+import scala.collection.mutable.ListBuffer
 
 /**
   * Created by spectrum on 5/14/2018.
@@ -23,11 +26,11 @@ case class User(_id: String,
                 name: String,
                 surname: String,
                 username: String,
-                email: String,
-                phone: String,
+                var email: String,
+                var phone: String,
                 region: String,
                 role: String,
-                passwordHash: String)
+                var passwordHash: String)
 
 case class UserSpec(name: String,
                     surname: String,
@@ -38,6 +41,9 @@ case class UserSpec(name: String,
                     role: String,
                     passwordHash: String,
                     botContracts: util.ArrayList[BotContractSpec])
+
+case class UserUpdateSpec(email: String, phone: String, note: String)
+case class PasswordResetSpec(oldPassword: String, newPassword: String, note: String)
 
 object UserExposed {
   def apply(user: User): UserExposed = {
@@ -64,7 +70,7 @@ case class UserExposed(name: String,
                        botContracts: util.ArrayList[BotContract],
                        bookBriefs: util.ArrayList[BookBrief])
 
-case class UserSearchCriteria(userIds: Option[List[String]] = None, region: Option[String] = None)
+case class UserSearchCriteria(userIds: Option[List[String]] = None, regions: Option[List[String]] = None)
 
 
 
@@ -72,9 +78,9 @@ object UserManagement {
   val usersCollection = CleaMongoClient.getUsersCollection
 
   val admin = new User(new ObjectId().toString, "Admin", "Admin", "admin", "admin@talisant.com", "+37493223775",
-    "ARM", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
+    "arm", "admin", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
   val talisant = new User(new ObjectId().toString, "Talisant", "Talisnt", "talisant", "talisant@talisant.com", "+37493223775",
-    "ARM", "client", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
+    "arm", "client", "C7AD44CBAD762A5DA0A452F9E854FDC1E0E7A52A38015F23F3EAB1D80B931DD472634DFAC71CD34EBC35D16AB7FB8A90C81F975113D6C7538DC69DD8DE9077EC")
 
   // Methods
 
@@ -103,7 +109,7 @@ object UserManagement {
   }
 
   def logout(token: String) = {
-    if(!TokenManagement.isTokenBlacklisted(token))
+    if (!TokenManagement.isTokenBlacklisted(token))
       TokenManagement.blacklistToken(token)
   }
 
@@ -115,8 +121,8 @@ object UserManagement {
     val insertedUser = usersCollection.find(equal("username", userSpec.username)).first().results()(0)
     userSpec.botContracts.forEach(Contracts.createContract(insertedUser.username, _))
 
-    Accounting.createBook(insertedUser.username, "Profit")
-    userSpec.botContracts forEach(contract => Accounting.createBook(userSpec.username, contract.botName))
+    Accounting.createBook(insertedUser.username, "profit")
+    userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
 
     insertedUser
   }
@@ -125,69 +131,46 @@ object UserManagement {
     usersCollection.find(equal("username", username)).first().results()(0)
   }
 
-  // delete user
   def deleteUser(username: String) = {
     usersCollection.deleteOne(equal("username", username)).results()
     Accounting.deleteBooks(username)
     Contracts.deleteContracts(username)
   }
 
-  // update user
-  def updateUser(username:String, userUpdateSpec: BsonDocument) = {
-    val updateQuery = new BsonDocument()
-    updateQuery.append("$set", userUpdateSpec)
-    usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
-    usersCollection.find(equal("username", username)).results()(0)
+  def updateUser(username: String, userUpdateSpec: UserUpdateSpec) = {
+    val user = UserManagement.getByUsername(username)
+
+    if(userUpdateSpec.email != null)
+      user.email = userUpdateSpec.email
+
+    if(userUpdateSpec.phone != null)
+      user.phone = userUpdateSpec.phone
+
+    UserManagement.save(user)
   }
 
   def getUsers(userSearchCriteria: UserSearchCriteria) = {
-    val filter = BsonDocument()
+    val filters = new ListBuffer[conversions.Bson]()
 
-    userSearchCriteria.region match {
-      case Some(region) => filter.append("region", BsonString(region))
+    userSearchCriteria.regions match {
+      case Some(regions) => filters += in("region", regions:_*)
       case None => ;
     }
 
     userSearchCriteria.userIds match {
-      case Some(userIds) => {
-        val inFilter = BsonDocument()
-        inFilter.append("$in", BsonArray(userSearchCriteria.userIds))
-        filter.append("username", inFilter)
-      }
+      case Some(userIds) => filters += in("username", userIds:_*)
       case None => ;
     }
 
-    usersCollection.find(filter).results()
+    if (!filters.isEmpty)
+      usersCollection.find(and(filters: _*)).results()
+    else usersCollection.find().results()
   }
 
-  def changePassword = ???
+  def save(user: User) =
+    usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 
-//  def addContract(username: String, contract: BotContract) = {
-//    var contracts = getByUsername(username).botContracts
-//
-//    if(!contracts.contains(contract)) {
-//
-//      contracts :+= contract
-//      val contractsBson = BsonArray()
-//
-//      contracts.foreach(
-//        el => {
-//          val contractBson = BsonDocument()
-//          contractBson.append("botName", BsonString(el.botName))
-//          contractBson.append("profitMargin", BsonNumber(el.profitMargin))
-//
-//          contractsBson.add(contractBson)
-//        }
-//      )
-//
-//      val botContracts= BsonDocument()
-//      val javaContracts = new util.ArrayList[BotContract]
-//      contracts.foreach{javaContracts.add(_)}
-//      botContracts.append("botContracts", contractsBson)
-//      val updateQuery = new BsonDocument()
-//      updateQuery.append("$set", botContracts)
-//      usersCollection.findOneAndUpdate(equal("username", username), updateQuery).results()
-//      usersCollection.find(equal("username", username)).results()(0)
-//    }
-//  }
+  def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
+
+  }
 }

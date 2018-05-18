@@ -1,6 +1,6 @@
 package mongo
 
-import accounting.Book
+import accounting.{Book, BookRecord}
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
 import contracts.BotContract
@@ -36,7 +36,7 @@ object CleaMongoClient {
   clientSettingsBuilder.credential(credential)
   clientSettingsBuilder.clusterSettings(mongoClusterSettingsBuilder.build())
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract], classOf[Token], classOf[Book]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract], classOf[Token], classOf[Book], classOf[BookRecord]), DEFAULT_CODEC_REGISTRY)
 
   val mongoClient = MongoClient(clientSettingsBuilder.build())
 
@@ -45,5 +45,6 @@ object CleaMongoClient {
   def getTokenCollection: MongoCollection[Token] = cleaDB.getCollection("tokens")
   def getUsersCollection: MongoCollection[User] = cleaDB.getCollection("users")
   def getBooksCollection: MongoCollection[Book] = cleaDB.getCollection("books")
+  def getBookRecordsCollection: MongoCollection[BookRecord] = cleaDB.getCollection("book_records")
   def getContractsCollection: MongoCollection[BotContract] = cleaDB.getCollection("contracts")
 }
