@@ -10,6 +10,7 @@ import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString, conversions}
 import org.mongodb.scala.model.Filters._
+import org.mongodb.scala.model.Updates._
 import token_management.{LoginSpec, TokenManagement}
 
 import scala.collection.mutable.ListBuffer
@@ -42,8 +43,8 @@ case class UserSpec(name: String,
                     passwordHash: String,
                     botContracts: util.ArrayList[BotContractSpec])
 
-case class UserUpdateSpec(email: String, phone: String, note: String)
-case class PasswordResetSpec(oldPassword: String, newPassword: String, note: String)
+case class UserUpdateSpec(email: String, phone: String, note: String = "")
+case class PasswordResetSpec(oldPassword: String, newPassword: String, note: String = "")
 
 object UserExposed {
   def apply(user: User): UserExposed = {
@@ -171,6 +172,9 @@ object UserManagement {
     usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
+    val user = UserManagement.getByUsername(username)
 
+    if(passwordResetSpec.oldPassword.equals(user.passwordHash))
+      usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
   }
 }

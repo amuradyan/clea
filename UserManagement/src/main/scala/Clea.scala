@@ -213,7 +213,23 @@ object Clea extends App with CorsSupport {
                     pathPrefix("password") {
                       corsHandler {
                         patch {
-                          complete("Password reset request sent")
+                          entity(as[String]){
+                            passwordResetSpecJson => {
+                              val passwordResetSpec = new Gson().fromJson(passwordResetSpecJson, classOf[PasswordResetSpec])
+                              payload.role match {
+                                case "admin" =>{
+                                  UserManagement.changePassword(username, passwordResetSpec)
+                                  Mailer.sendPasswordResetReply(username, passwordResetSpec)
+                                  complete("Password reset")
+                                }
+                                case "client" => {
+                                  Mailer.sendPasswordResetRequest(username, passwordResetSpec)
+                                  complete("Password reset request sent")
+                                }
+                                case _ => complete(HttpResponse(StatusCodes.Unauthorized))
+                              }
+                            }
+                          }
                         }
                       }
                     } ~
