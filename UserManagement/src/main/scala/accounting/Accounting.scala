@@ -2,6 +2,7 @@ package accounting
 
 import java.util
 
+import adapters.cleversniper.CleversniperAdapter
 import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
 import mongo.CleaMongoClient
@@ -201,5 +202,9 @@ object Accounting {
 
       book
     }
+  }
+
+  def requestData = {
+    val deals = CleversniperAdapter.getDeals
   }
 }

@@ -20,7 +20,7 @@ import scala.collection.mutable.ListBuffer
   */
 object User {
   def apply(userSpec: UserSpec): User = new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash)
+      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.hash)
 }
 
 case class User(_id: String,
@@ -31,7 +31,7 @@ case class User(_id: String,
                 var phone: String,
                 region: String,
                 role: String,
-                var passwordHash: String)
+                var hash: String)
 
 case class UserSpec(name: String,
                     surname: String,
@@ -40,7 +40,7 @@ case class UserSpec(name: String,
                     phone: String,
                     region: String,
                     role: String,
-                    passwordHash: String,
+                    hash: String,
                     botContracts: util.ArrayList[BotContractSpec])
 
 case class UserUpdateSpec(email: String, phone: String, note: String = "")
@@ -101,7 +101,7 @@ object UserManagement {
   }
 
   def login(loginSpec: LoginSpec) = {
-    val users = usersCollection.find(and(equal("username", loginSpec.username), equal("passwordHash", loginSpec.passwordHash))).first().results()
+    val users = usersCollection.find(and(equal("username", loginSpec.username), equal("hash", loginSpec.passwordHash))).first().results()
 
     if (!users.isEmpty)
       Some(TokenManagement.issueToken(users(0)))
@@ -174,7 +174,7 @@ object UserManagement {
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
     val user = UserManagement.getByUsername(username)
 
-    if(passwordResetSpec.oldPassword.equals(user.passwordHash))
-      usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
+    if(passwordResetSpec.oldPassword.equals(user.hash))
+      usersCollection.findOneAndUpdate(equal("username", username), set("hash", passwordResetSpec.newPassword)).results()
   }
 }
