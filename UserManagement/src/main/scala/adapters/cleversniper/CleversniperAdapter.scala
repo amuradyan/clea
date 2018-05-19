@@ -35,29 +35,33 @@ object CleversniperAdapter {
   def getDeals: List[CleversniperDeal] = {
     var dealList = List[CleversniperDeal]()
 
-    val tokenResponse = Http("https://algo.adapters.cleversniper.com/api/session").option(HttpOptions.allowUnsafeSSL).asString
+    try {
+      val tokenResponse = Http("https://algo.cleversniper.com/api/session").option(HttpOptions.allowUnsafeSSL).asString
 
-    if (tokenResponse.code == 200) {
-      val dealsResponse = Http("https://algo.adapters.cleversniper.com/api/orders?removeall=false")
-        .header("Content-Type", "application/json")
-        .header("Charset", "UTF-8")
-        .header("sessionid", tokenResponse.body.toString.replace("\"", ""))
-        .option(HttpOptions.readTimeout(10000))
-        .option(HttpOptions.allowUnsafeSSL).asString
+      if (tokenResponse.code == 200) {
+        val dealsResponse = Http("https://algo.cleversniper.com/api/orders?removeall=false")
+          .header("Content-Type", "application/json")
+          .header("Charset", "UTF-8")
+          .header("sessionid", tokenResponse.body.toString.replace("\"", ""))
+          .option(HttpOptions.readTimeout(10000))
+          .option(HttpOptions.allowUnsafeSSL).asString
 
-      if(dealsResponse.code == 200){
-        val dealsJson = dealsResponse.body.toString
+        if (dealsResponse.code == 200) {
+          val dealsJson = dealsResponse.body.toString
 
-        val token = new TypeToken[util.ArrayList[CleversniperDeal]](){}.getType
+          val token = new TypeToken[util.ArrayList[CleversniperDeal]]() {}.getType
 
-        val deals: util.ArrayList[CleversniperDeal] = new Gson().fromJson(dealsJson, token)
+          val deals: util.ArrayList[CleversniperDeal] = new Gson().fromJson(dealsJson, token)
 
-        deals.forEach({ el => dealList :+= el})
+          deals.forEach({ el => dealList :+= el })
+        } else {
+          logger.info("Unable to obtain deals from adapters.cleversniper")
+        }
       } else {
-        logger.info("Unable to obtain deals from adapters.cleversniper")
+        logger.info("Unable to obtain a token from adapters.cleversniper")
       }
-    } else {
-      logger.info("Unable to obtain a token from adapters.cleversniper")
+    } catch {
+      case _ => logger.error("Unable to fetch data from ")
     }
 
     dealList

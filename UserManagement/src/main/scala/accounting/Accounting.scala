@@ -2,17 +2,15 @@ package accounting
 
 import java.util
 
-import adapters.cleversniper.CleversniperAdapter
 import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
 import helpers.Helpers._
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNumber, BsonString, conversions}
+import org.mongodb.scala.bson.conversions
 import user_management.{UserManagement, UserSearchCriteria}
 
-import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -20,7 +18,8 @@ import scala.collection.mutable.ListBuffer
   */
 case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float, note: String)
 
-case class BookRecord(userId: String,
+case class BookRecord(_id: String,
+                      userId: String,
                       bookId: String,
                       date: Long,
                       `type`: String, // deposit, withdraw
@@ -28,6 +27,11 @@ case class BookRecord(userId: String,
                       amount: Float,
                       fee: Float,
                       var currentBalance: Float = 0f)
+
+object BookRecord {
+  def apply(userId: String, bookId: String, date: Long, `type`: String, source: String, amount: Float, fee: Float)
+  = new BookRecord(new ObjectId().toString, userId, bookId, date, `type`, source, amount, fee, 0f)
+}
 
 case class RecordSearchCriteria(var bookNames: Option[List[String]] = None,
                                 var dateFrom: Option[Long] = None,
@@ -89,7 +93,7 @@ object Accounting {
     var books = Seq[Book]()
     val rawBooks = booksCollection.find(equal("name", name)).first().results()
 
-    if(rawBooks != null)
+    if (rawBooks != null)
       books = rawBooks
 
     books
@@ -211,9 +215,5 @@ object Accounting {
 
       book
     }
-  }
-
-  def requestData = {
-    val deals = CleversniperAdapter.getDeals
   }
 }

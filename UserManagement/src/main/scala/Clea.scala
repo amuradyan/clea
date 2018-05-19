@@ -327,8 +327,7 @@ object Clea extends App with CorsSupport {
 
                                       payload.role match {
                                         case "admin" => {
-                                          val balance = Accounting.getBalance(bookId)
-                                          val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee, balance)
+                                          val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee)
                                           val book = Accounting.addRecord(bookId, record)
                                           Mailer.sendDWReply(username, DWSpec)
                                           val res = new Gson().toJson(book)
