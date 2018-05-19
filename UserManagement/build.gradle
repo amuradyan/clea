@@ -59,6 +59,9 @@ dependencies {
     compile group: 'ch.megard', name: 'akka-http-cors_2.12', version: '0.3.0'
     compile group: 'org.scalaj', name: 'scalaj-http_2.12', version: '2.4.0'
     compile group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.0'
+    compile group: 'com.google.api-client', name: 'google-api-client', version: '1.23.0'
+    compile group: 'com.google.oauth-client', name: 'google-oauth-client-jetty', version: '1.23.0'
+    compile group: 'com.google.apis', name: 'google-api-services-gmail', version: 'v1-rev83-1.23.0'
     compile ( group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0'){
         exclude (group: 'org.bouncycastle')
     }

@@ -61,7 +61,7 @@ object CleversniperAdapter {
         logger.info("Unable to obtain a token from adapters.cleversniper")
       }
     } catch {
-      case _ => logger.error("Unable to fetch data from ")
+      case _: Throwable => logger.error("Unable to fetch data from ")
     }
 
     dealList

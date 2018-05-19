@@ -66,12 +66,12 @@ object Clea extends App with CorsSupport {
             post {
               entity(as[String]) { loginSpecJson => {
                 val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
-                val user = UserManagement.login(loginSpec)
+                val token = UserManagement.login(loginSpec)
 
-                user match {
-                  case Some(token) => {
+                token match {
+                  case Some(t) => {
                     logger.info(s"${loginSpec.username} logged in")
-                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, token)))
+                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
                   }
                   case None =>
                     complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))

@@ -112,7 +112,7 @@ object Accounting {
     val book = getBookBrief(username, name)
 
     book match {
-      case b: Book => b.balance
+      case Some(b) => b.balance
       case _ => 0f
     }
   }
