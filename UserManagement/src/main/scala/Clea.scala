@@ -1,9 +1,12 @@
+import java.io.InputStream
+import java.security.{KeyStore, SecureRandom}
 import java.util
+import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
 import accounting.{Accounting, BookRecord, DepositWithdrawSpec, RecordSearchCriteria}
 import akka.Done
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.{HttpEntity, _}
 import akka.http.scaladsl.server.Directives._
@@ -49,6 +52,23 @@ object Clea extends App with CorsSupport {
   implicit val actorSystem = ActorSystem("Clea")
   implicit val executionCtx = actorSystem.dispatcher
   implicit val materializer = ActorMaterializer()
+
+  val ks: KeyStore = KeyStore.getInstance("PKCS12")
+
+  val keystore: InputStream = getClass.getResourceAsStream("/cert.p12")
+  require(keystore != null, "Keystore required!")
+  ks.load(keystore, "".toCharArray)
+
+  val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+  keyManagerFactory.init(ks, "".toCharArray)
+
+  val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+  tmf.init(ks)
+
+  val sslContext: SSLContext = SSLContext.getInstance("TLS")
+  sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+
+  val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
 
   Fetcher.setup
   UserManagement.setup
@@ -151,9 +171,9 @@ object Clea extends App with CorsSupport {
                   }
                 }
             } ~
-              pathPrefix("me") {
-                pathEnd {
-                  corsHandler {
+              corsHandler {
+                pathPrefix("me") {
+                  pathEnd {
                     get {
                       val jwtPayload = TokenManagement.decode(token)
                       val res = new Gson().toJson(UserExposed(jwtPayload.sub))
@@ -310,7 +330,9 @@ object Clea extends App with CorsSupport {
                                       recordSearchCriteria.userIds = Some(List(username))
 
                                       val records = Accounting.getRecords(recordSearchCriteria)
-                                      val res = new Gson().toJson(records)
+                                      val recordsJ = new util.ArrayList[BookRecord]()
+                                      records foreach {recordsJ.add}
+                                      val res = new Gson().toJson(recordsJ)
                                       complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                     } else {
                                       complete(HttpResponse(StatusCodes.Unauthorized))
@@ -382,60 +404,61 @@ object Clea extends App with CorsSupport {
               }
           } ~
           pathPrefix("books") {
-            pathEnd {
-              corsHandler {
-                get {
-                  parameters('recordSearchCriteria.as[String].?) {
-                    recordSearchCriteriaJson => {
-                      var recordSearchCriteria = RecordSearchCriteria()
-                      val requestor = UserManagement.getByUsername(payload.sub)
-
-                      recordSearchCriteriaJson match {
-                        case Some(criteria) => {
-                          recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
-                        }
-                        case None => ;
-                      }
-
-                      payload.sub match {
-                        case "manager" => recordSearchCriteria.region = Some(requestor.region)
-                        case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
-                        case _ => ;
-                      }
-
-                      val records = Accounting.getRecords(recordSearchCriteria)
-                      val res = new Gson().toJson(records)
-                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                    }
-                  }
-                }
-              }
-            } ~
+//            pathEnd {
+//              corsHandler {
+//                get {
+//                  parameters('recordSearchCriteria.as[String].?) {
+//                    recordSearchCriteriaJson => {
+//                      var recordSearchCriteria = RecordSearchCriteria()
+//                      val requestor = UserManagement.getByUsername(payload.sub)
+//
+//                      recordSearchCriteriaJson match {
+//                        case Some(criteria) => {
+//                          recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+//                        }
+//                        case None => ;
+//                      }
+//
+//                      payload.sub match {
+//                        case "manager" => recordSearchCriteria.region = Some(requestor.region)
+//                        case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+//                        case _ => ;
+//                      }
+//
+//                      val records = Accounting.getRecords(recordSearchCriteria)
+//                      val res = new Gson().toJson(records)
+//                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+//                    }
+//                  }
+//                }
+//              }
+//            } ~
             pathPrefix("records") {
-              parameters('recordSearchCriteria.as[String].?) {
-                recordSearchCriteriaJson => {
-                  var recordSearchCriteria = RecordSearchCriteria()
-                  val requestor = UserManagement.getByUsername(payload.sub)
+              corsHandler {
+                parameters('recordSearchCriteria.as[String].?) {
+                  recordSearchCriteriaJson => {
+                    var recordSearchCriteria = RecordSearchCriteria()
+                    val requestor = UserManagement.getByUsername(payload.sub)
 
-                  recordSearchCriteriaJson match {
-                    case Some(criteria) => {
-                      recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+                    recordSearchCriteriaJson match {
+                      case Some(criteria) => {
+                        recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
+                      }
+                      case None => ;
                     }
-                    case None => ;
-                  }
 
-                  payload.sub match {
-                    case "manager" => recordSearchCriteria.region = Some(requestor.region)
-                    case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
-                    case _ => ;
-                  }
+                    payload.sub match {
+                      case "manager" => recordSearchCriteria.region = Some(requestor.region)
+                      case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+                      case _ => ;
+                    }
 
-                  val records = Accounting.getRecords(recordSearchCriteria)
-                  val recordsJava = new util.ArrayList[BookRecord]()
-                  records foreach {e => recordsJava.add(e)};
-                  logger.info(s"${records.length} records found")
-                  val res = new Gson().toJson(recordsJava)
-                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                    val records = Accounting.getRecords(recordSearchCriteria)
+                    val recordsJ = new util.ArrayList[BookRecord]()
+                    records.toList foreach {e => recordsJ.add(e)}
+                    val res = new Gson().toJson(recordsJ)
+                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                  }
                 }
               }
             }
@@ -449,7 +472,7 @@ object Clea extends App with CorsSupport {
                waitOnFuture <- Promise[Done].future
   } yield waitOnFuture
 
-  logger.info(s"Server online at http://$host:$port/")
+  logger.info(s"Server online at https://$host:$port/")
 
   sys.addShutdownHook {
     bindingFuture

@@ -8,7 +8,7 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpHeader, HttpResponse, StatusCodes}
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.server.Route
 import com.typesafe.config.ConfigFactory
 
 trait CorsSupport {
@@ -26,7 +26,7 @@ trait CorsSupport {
   //this directive adds access control headers to normal responses
   private def addAccessControlHeaders = {
     respondWithDefaultHeaders(
-      `Access-Control-Allow-Origin`(allowedOrigin),
+      `Access-Control-Allow-Origin`(HttpOriginRange.*),
       `Access-Control-Allow-Credentials`(true),
       `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Cache-Control")
     )

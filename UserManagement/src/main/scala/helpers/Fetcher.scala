@@ -53,6 +53,6 @@ object Fetcher {
       .build()
 
     scheduler.scheduleJob(job, trigger)
-    scheduler.start
+//    scheduler.start
   }
 }

@@ -202,9 +202,9 @@ object Accounting {
       val book = matchedBooks(0)
 
       if (record.`type`.equals("deposit"))
-        book.balance = book.balance + record.amount
+        book.balance = book.balance + record.amount - record.fee
       else
-        book.balance = book.balance - record.amount
+        book.balance = book.balance - record.amount - record.fee
 
       record.currentBalance = book.balance
 

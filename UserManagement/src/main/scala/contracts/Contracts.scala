@@ -14,10 +14,10 @@ import org.bson.types.ObjectId
   */
 case class BotContractSpec(botName: String, profitMargin: Float)
 
-case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float)
+case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float, createdAt: Long)
 object BotContract {
   def apply(userId: String, botContractSpec: BotContractSpec): BotContract =
-    BotContract(new ObjectId().toString, userId, botContractSpec.botName, botContractSpec.profitMargin)
+    BotContract(new ObjectId().toString, userId, botContractSpec.botName, botContractSpec.profitMargin, System.currentTimeMillis())
 }
 
 class Contracts
