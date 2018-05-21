@@ -1,9 +1,11 @@
 package accounting
 
+import java.time.{LocalDate, LocalDateTime}
 import java.util
 
 import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
+import contracts.Contracts
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
@@ -66,6 +68,26 @@ object Accounting {
   val logger = Logger[Accounting]
   val booksCollection = CleaMongoClient.getBooksCollection
   val recordsCollection = CleaMongoClient.getBookRecordsCollection
+
+  def distributeProfit(totalProfit: Float, botName: String, date: LocalDate =  LocalDateTime.now().toLocalDate) {
+    val contract = Contracts.getContract("talisant", botName)
+    val books = Accounting.getBooksByName(botName)
+    val botBalance = books map {_.balance} sum
+
+    val talisantProfit = (contract.profitMargin / books.size) * totalProfit
+    val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
+    Accounting.addRecord("profit", talisantProfitRecord)
+
+    val leftover = totalProfit - talisantProfit
+
+    books foreach {
+      book => {
+        val bookProfit = (book.balance / botBalance) * leftover
+        val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
+        Accounting.addRecord("profit", bookProfitRecord)
+      }
+    }
+  }
 
   def createBook(username: String, name: String) = {
     val books = booksCollection.find(and(equal("owner", username), equal("name", name))).first().results()

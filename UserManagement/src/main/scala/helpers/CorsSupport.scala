@@ -5,39 +5,49 @@ package helpers
   */
 
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.{HttpHeader, HttpResponse, StatusCodes}
-import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`, _}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.typesafe.config.ConfigFactory
 
 trait CorsSupport {
-  lazy val allowedOrigin = {
-    val config = ConfigFactory.load()
-    val sAllowedOrigin = config.getString("cors.allowed-origin")
-    HttpOrigin(sAllowedOrigin)
-  }
 
-  private def extractOrigin: HttpHeader => Option[Seq[HttpOrigin]] = {
-    case h: Origin => Some(h.origins)
-    case x => None
+  lazy val allowedOrigins = {
+    val config = ConfigFactory.load()
+    config.getStringList("cors.allowed-origins")
   }
 
   //this directive adds access control headers to normal responses
-  private def addAccessControlHeaders = {
+  private def addAccessControlHeaders(httpOrigin: HttpOrigin) = {
+    var replyOrigin = httpOrigin
+    val httpOriginStr = httpOrigin.scheme + "://" + httpOrigin.host.toString().replaceAll("Host: ", "")
+
+    if (!allowedOrigins.contains(httpOriginStr))
+      replyOrigin = HttpOrigin("http://rafik.com:8888")
+
     respondWithDefaultHeaders(
-      `Access-Control-Allow-Origin`(HttpOriginRange.*),
+      `Access-Control-Allow-Origin`(replyOrigin),
       `Access-Control-Allow-Credentials`(true),
       `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Cache-Control")
     )
   }
 
   //this handles preflight OPTIONS requests.
-  private def preflightRequestHandler: Route = options {
-    complete(HttpResponse(StatusCodes.OK).withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, GET, DELETE, PATCH)))
+  private def preflightRequestHandler(httpOrigin: HttpOrigin): Route = options {
+    var replyOrigin = httpOrigin
+    val httpOriginStr = httpOrigin.scheme + "://" + httpOrigin.host.toString().replaceAll("Host: ", "")
+
+    if (!allowedOrigins.contains(httpOriginStr))
+      replyOrigin = HttpOrigin("http://rafik.com:8888")
+
+    complete(HttpResponse(StatusCodes.OK)
+      .withHeaders(
+        `Access-Control-Allow-Origin`(replyOrigin),
+        `Access-Control-Allow-Methods`(OPTIONS, POST, GET, DELETE, PATCH)))
   }
 
-  def corsHandler(r: Route) = addAccessControlHeaders {
-    preflightRequestHandler ~ r
+  def corsHandler(origin: HttpOrigin)(r: Route) = addAccessControlHeaders(origin) {
+    preflightRequestHandler(origin) ~ r
   }
 }

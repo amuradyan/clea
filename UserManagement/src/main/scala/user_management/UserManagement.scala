@@ -20,7 +20,7 @@ import scala.collection.mutable.ListBuffer
   */
 object User {
   def apply(userSpec: UserSpec): User = new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.hash)
+      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash)
 }
 
 case class User(_id: String,
@@ -31,7 +31,7 @@ case class User(_id: String,
                 var phone: String,
                 region: String,
                 role: String,
-                var hash: String)
+                var passwordHash: String)
 
 case class UserSpec(name: String,
                     surname: String,
@@ -40,7 +40,7 @@ case class UserSpec(name: String,
                     phone: String,
                     region: String,
                     role: String,
-                    hash: String,
+                    var passwordHash: String,
                     botContracts: util.ArrayList[BotContractSpec])
 
 case class UserUpdateSpec(email: String, phone: String, note: String = "")
@@ -101,7 +101,7 @@ object UserManagement {
   }
 
   def login(loginSpec: LoginSpec) = {
-    val users = usersCollection.find(and(equal("username", loginSpec.username), equal("hash", loginSpec.passwordHash))).first().results()
+    val users = usersCollection.find(and(equal("username", loginSpec.username), equal("passwordHash", loginSpec.passwordHash.toUpperCase))).first().results()
 
     if (!users.isEmpty)
       Some(TokenManagement.issueToken(users(0)))
@@ -116,14 +116,18 @@ object UserManagement {
 
   // create user
   def createUser(userSpec: UserSpec) = {
+    userSpec.passwordHash = userSpec.passwordHash.toUpperCase
     val newUser = User(userSpec)
 
     usersCollection.insertOne(newUser).results()
-    val insertedUser = usersCollection.find(equal("username", userSpec.username)).first().results()(0)
-    userSpec.botContracts.forEach(Contracts.createContract(insertedUser.username, _))
+    val insertedUser = getByUsername(userSpec.username)
 
-    Accounting.createBook(insertedUser.username, "profit")
-    userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
+    if(userSpec.botContracts != null){
+      userSpec.botContracts forEach (Contracts.createContract(insertedUser.username, _))
+
+      Accounting.createBook(insertedUser.username, "profit")
+      userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
+    }
 
     insertedUser
   }
@@ -174,7 +178,7 @@ object UserManagement {
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
     val user = UserManagement.getByUsername(username)
 
-    if(passwordResetSpec.oldPassword.equals(user.hash))
-      usersCollection.findOneAndUpdate(equal("username", username), set("hash", passwordResetSpec.newPassword)).results()
+    if(passwordResetSpec.oldPassword.equals(user.passwordHash))
+      usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
   }
 }

@@ -8,6 +8,7 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
 import akka.http.scaladsl.model.{HttpEntity, _}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.{Unmarshaller, _}
@@ -22,7 +23,6 @@ import helpers.{CorsSupport, Fetcher}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import contracts.{BotContract, BotContractSpec, Contracts}
-import mailer.Mailer
 
 /**
   * Created by spectrum on 5/2/2018.
@@ -75,35 +75,51 @@ object Clea extends App with CorsSupport {
 
   val route = {
     var payload: JWTPayload = null
+    var origin = HttpOrigin("http://a.com")
     var token = ""
 
-    pathSingleSlash {
-      complete("It's alive!!!")
-    } ~
-      corsHandler {
-        pathPrefix("token") {
-          pathEnd {
-            post {
-              entity(as[String]) { loginSpecJson => {
-                val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
-                val token = UserManagement.login(loginSpec)
+    extractRequestContext {
+      rc => {
+        val originHeader = rc.request.getHeader("Origin")
 
-                token match {
-                  case Some(t) => {
-                    logger.info(s"${loginSpec.username} logged in")
-                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+        if (originHeader.isPresent)
+          origin = HttpOrigin(originHeader.get().value())
+
+        pathSingleSlash {
+          complete("It's alive!!!")
+        } ~
+          pathPrefix("token") {
+            corsHandler(origin) {
+              pathEnd {
+                post {
+                  entity(as[String]) { loginSpecJson => {
+                    val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
+                    val token = UserManagement.login(loginSpec)
+
+                    token match {
+                      case Some(t) => {
+                        logger.info(s"${loginSpec.username} logged in")
+                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                      }
+                      case None =>
+                        complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                    }
                   }
-                  case None =>
-                    complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                  }
                 }
-              }
               }
             }
           }
-        }
-      } ~
+      }
+    } ~
       authorize(rc => {
         val authHeader = rc.request.getHeader("Authorization")
+        val originHeader = rc.request.getHeader("Origin")
+
+        if (originHeader.isPresent)
+          origin = HttpOrigin(originHeader.get().value())
+
+        logger.info(s"---- Request from origin: ${origin.host} ---")
 
         logger.info("About to auth")
         if (authHeader.isPresent) {
@@ -115,10 +131,19 @@ object Clea extends App with CorsSupport {
 
           payload = TokenManagement.decode(token)
           !TokenManagement.isTokenBlacklisted(token) && TokenManagement.isValid(token)
-        } else false
+        } else {
+          if(rc.request.method.equals(HttpMethods.OPTIONS)){
+            logger.error("Auth header not present but request type options")
+            true
+          } else {
+            logger.error("Auth header not present")
+            false
+          }
+        }
       }) {
+
         pathPrefix("token") {
-          corsHandler {
+          corsHandler(origin) {
             delete {
               UserManagement.logout(token)
               complete(s"${payload.sub} logged out")
@@ -127,7 +152,7 @@ object Clea extends App with CorsSupport {
         } ~
           pathPrefix("users") {
             pathEnd {
-              corsHandler {
+              corsHandler(origin) {
                 post {
                   entity(as[String]) {
                     userSpecJson => {
@@ -144,7 +169,7 @@ object Clea extends App with CorsSupport {
                   }
                 }
               } ~
-                corsHandler {
+                corsHandler(origin) {
                   get {
                     import CsvParameters._
 
@@ -171,22 +196,22 @@ object Clea extends App with CorsSupport {
                   }
                 }
             } ~
-              corsHandler {
-                pathPrefix("me") {
-                  pathEnd {
-                    get {
-                      val jwtPayload = TokenManagement.decode(token)
-                      val res = new Gson().toJson(UserExposed(jwtPayload.sub))
-                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                    }
+            pathPrefix("me") {
+              corsHandler(origin) {
+                pathEnd {
+                  get {
+                    val jwtPayload = TokenManagement.decode(token)
+                    val res = new Gson().toJson(UserExposed(jwtPayload.sub))
+                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                   }
                 }
-              } ~
+              }
+            } ~
               pathPrefix(Segment) {
                 username => {
                   val user = UserManagement.getByUsername(username)
                   pathEnd {
-                    corsHandler {
+                    corsHandler(origin) {
                       get {
                         logger.info(s"User $username accessed by ${payload.role}")
                         var res = ""
@@ -213,7 +238,7 @@ object Clea extends App with CorsSupport {
                         complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                       }
                     } ~
-                      corsHandler {
+                      corsHandler(origin) {
                         delete {
                           if (payload.role.equalsIgnoreCase("admin")) {
                             UserManagement.deleteUser(username)
@@ -222,7 +247,7 @@ object Clea extends App with CorsSupport {
                             complete(HttpResponse(StatusCodes.Unauthorized))
                         }
                       } ~
-                      corsHandler {
+                      corsHandler(origin) {
                         patch {
                           entity(as[String]) {
                             userUpdateSpecJson => {
@@ -238,19 +263,19 @@ object Clea extends App with CorsSupport {
                       }
                   } ~
                     pathPrefix("password") {
-                      corsHandler {
+                      corsHandler(origin) {
                         patch {
-                          entity(as[String]){
+                          entity(as[String]) {
                             passwordResetSpecJson => {
                               val passwordResetSpec = new Gson().fromJson(passwordResetSpecJson, classOf[PasswordResetSpec])
                               payload.role match {
-                                case "admin" =>{
+                                case "admin" => {
                                   UserManagement.changePassword(username, passwordResetSpec)
-                                  Mailer.sendPasswordResetReply(username, passwordResetSpec)
+                                  //                                  Mailer.sendPasswordResetReply(username, passwordResetSpec)
                                   complete("Password reset")
                                 }
                                 case "client" => {
-                                  Mailer.sendPasswordResetRequest(username, passwordResetSpec)
+                                  //                                  Mailer.sendPasswordResetRequest(username, passwordResetSpec)
                                   complete("Password reset request sent")
                                 }
                                 case _ => complete(HttpResponse(StatusCodes.Unauthorized))
@@ -261,7 +286,7 @@ object Clea extends App with CorsSupport {
                       }
                     } ~
                     pathPrefix("contracts") {
-                      corsHandler {
+                      corsHandler(origin) {
                         post {
                           entity(as[String]) {
                             botContractSpecJson => {
@@ -270,11 +295,11 @@ object Clea extends App with CorsSupport {
                               payload.role match {
                                 case "admin" => {
                                   Contracts.createContract(username, botContractSpec)
-                                  Mailer.sendAddContractReply(username, botContractSpec)
+                                  //                                  Mailer.sendAddContractReply(username, botContractSpec)
                                   complete(s"Deposit request by $username. A record was also added")
                                 }
                                 case "client" => {
-                                  Mailer.sendAddContractRequest(username, botContractSpec)
+                                  //                                  Mailer.sendAddContractRequest(username, botContractSpec)
                                   complete(s"Deposit request by $username")
                                 }
                                 case _ => complete(HttpResponse(StatusCodes.Unauthorized))
@@ -283,7 +308,7 @@ object Clea extends App with CorsSupport {
                           }
                         }
                       } ~
-                        corsHandler {
+                        corsHandler(origin) {
                           get {
                             var contracts = new util.ArrayList[BotContract]()
                             payload.role match {
@@ -312,7 +337,7 @@ object Clea extends App with CorsSupport {
                       pathPrefix(Segment) {
                         bookId => {
                           pathPrefix("records") {
-                            corsHandler {
+                            corsHandler(origin) {
                               get {
                                 parameters('recordSearchCriteria.as[String].?) {
                                   recordSearchCriteriaJson => {
@@ -331,7 +356,9 @@ object Clea extends App with CorsSupport {
 
                                       val records = Accounting.getRecords(recordSearchCriteria)
                                       val recordsJ = new util.ArrayList[BookRecord]()
-                                      records foreach {recordsJ.add}
+                                      records foreach {
+                                        recordsJ.add
+                                      }
                                       val res = new Gson().toJson(recordsJ)
                                       complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                     } else {
@@ -341,7 +368,7 @@ object Clea extends App with CorsSupport {
                                 }
                               }
                             } ~
-                              corsHandler {
+                              corsHandler(origin) {
                                 post {
                                   entity(as[String]) {
                                     DWSpecJson => {
@@ -351,13 +378,13 @@ object Clea extends App with CorsSupport {
                                         case "admin" => {
                                           val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee)
                                           val book = Accounting.addRecord(bookId, record)
-                                          Mailer.sendDWReply(username, DWSpec)
+                                          //                                          Mailer.sendDWReply(username, DWSpec)
                                           val res = new Gson().toJson(book)
                                           complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                         }
                                         case "client" => {
-                                          Mailer.sendDWRequest(username, DWSpec)
-                                          complete(s"${DWSpec.`type`} request sent")
+                                          //                                          Mailer.sendDWRequest(username, DWSpec)
+                                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "Done")))
                                         }
                                       }
                                     }
@@ -366,19 +393,18 @@ object Clea extends App with CorsSupport {
                               }
                           } ~
                             pathEnd {
-                              corsHandler {
+                              corsHandler(origin) {
                                 get {
                                   if (payload.sub.equals(username) || payload.role.equals("admin") ||
-                                    (payload.role.equals("manager") && payload.region.equals(user.region)))
-                                  {
+                                    (payload.role.equals("manager") && payload.region.equals(user.region))) {
                                     val book = Accounting.getBook(username, bookId)
                                     book match {
-                                    case Some(b) => {
-                                      val res = new Gson().toJson(book)
-                                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                      case Some(b) => {
+                                        val res = new Gson().toJson(book)
+                                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                      }
+                                      case None => complete(HttpResponse(StatusCodes.NotFound))
                                     }
-                                    case None => complete(HttpResponse(StatusCodes.NotFound))
-                                  }
                                   } else
                                     complete(HttpResponse(StatusCodes.Unauthorized))
                                 }
@@ -387,7 +413,7 @@ object Clea extends App with CorsSupport {
                         }
                       } ~
                         pathEnd {
-                          corsHandler {
+                          corsHandler(origin) {
                             get {
                               if (payload.role.equals("admin")) {
                                 val bookBriefs = Accounting.getBooks(username)
@@ -404,37 +430,8 @@ object Clea extends App with CorsSupport {
               }
           } ~
           pathPrefix("books") {
-//            pathEnd {
-//              corsHandler {
-//                get {
-//                  parameters('recordSearchCriteria.as[String].?) {
-//                    recordSearchCriteriaJson => {
-//                      var recordSearchCriteria = RecordSearchCriteria()
-//                      val requestor = UserManagement.getByUsername(payload.sub)
-//
-//                      recordSearchCriteriaJson match {
-//                        case Some(criteria) => {
-//                          recordSearchCriteria = new Gson().fromJson(recordSearchCriteriaJson.get, classOf[RecordSearchCriteria])
-//                        }
-//                        case None => ;
-//                      }
-//
-//                      payload.sub match {
-//                        case "manager" => recordSearchCriteria.region = Some(requestor.region)
-//                        case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
-//                        case _ => ;
-//                      }
-//
-//                      val records = Accounting.getRecords(recordSearchCriteria)
-//                      val res = new Gson().toJson(records)
-//                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-//                    }
-//                  }
-//                }
-//              }
-//            } ~
             pathPrefix("records") {
-              corsHandler {
+              corsHandler(origin) {
                 parameters('recordSearchCriteria.as[String].?) {
                   recordSearchCriteriaJson => {
                     var recordSearchCriteria = RecordSearchCriteria()
@@ -447,7 +444,7 @@ object Clea extends App with CorsSupport {
                       case None => ;
                     }
 
-                    payload.sub match {
+                    payload.role match {
                       case "manager" => recordSearchCriteria.region = Some(requestor.region)
                       case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
                       case _ => ;
@@ -455,7 +452,7 @@ object Clea extends App with CorsSupport {
 
                     val records = Accounting.getRecords(recordSearchCriteria)
                     val recordsJ = new util.ArrayList[BookRecord]()
-                    records.toList foreach {e => recordsJ.add(e)}
+                    records.toList foreach { e => recordsJ.add(e) }
                     val res = new Gson().toJson(recordsJ)
                     complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                   }
@@ -465,6 +462,7 @@ object Clea extends App with CorsSupport {
           }
       }
   }
+
 
   val bindingFuture: Future[ServerBinding] = null
 

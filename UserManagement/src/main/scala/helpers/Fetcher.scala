@@ -13,25 +13,9 @@ class CleversniperFetcher() extends Job {
   override def execute(context: JobExecutionContext) = {
     val deals = CleversniperAdapter.getDeals
 
-    val totalProfit = deals map {_.Profit} sum
+    val totalProfit = deals map { _.Profit } sum
 
-    val contract = Contracts.getContract("talisant", "cleversniper")
-    val books = Accounting.getBooksByName("cleversniper")
-    val botBalance = books map {_.balance} sum
-
-    val talisantProfit = (contract.profitMargin / books.size) * totalProfit
-    val talisantProfitRecord = BookRecord("talisant", "profit", System.currentTimeMillis(), "deposit", "cleversniper", talisantProfit, 0f)
-    Accounting.addRecord("profit", talisantProfitRecord)
-
-    val leftover = totalProfit - talisantProfit
-
-    books foreach {
-      book => {
-        val bookProfit = (book.balance / botBalance) * leftover
-        val bookProfitRecord = BookRecord(book.owner, "profit", System.currentTimeMillis(), "deposit", "cleversniper", bookProfit, 0f)
-        Accounting.addRecord("profit", bookProfitRecord)
-      }
-    }
+    Accounting.distributeProfit(totalProfit, "cleversniper")
   }
 }
 
@@ -48,11 +32,11 @@ object Fetcher {
     val trigger = newTrigger.withIdentity("cleversniper-trigger", "fetcher-triggers")
       .startNow()
       .withSchedule(simpleSchedule()
-        .withIntervalInHours(24)
+        .withIntervalInHours(12)
         .repeatForever())
       .build()
 
     scheduler.scheduleJob(job, trigger)
-//    scheduler.start
+    scheduler.start()
   }
 }
