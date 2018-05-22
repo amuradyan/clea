@@ -71,20 +71,27 @@ object Accounting {
 
   def distributeProfit(totalProfit: Float, botName: String, date: LocalDate =  LocalDateTime.now().toLocalDate) {
     val contract = Contracts.getContract("talisant", botName)
-    val books = Accounting.getBooksByName(botName)
-    val botBalance = books map {_.balance} sum
+    val booksOfInterest = Accounting.getBooksByName(botName) filter {_.balance > 0 }
+    val botBalance = booksOfInterest map {_.balance} sum
 
-    val talisantProfit = (contract.profitMargin / books.size) * totalProfit
-    val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
-    Accounting.addRecord("profit", talisantProfitRecord)
+    var talisantProfit = 0f
+    if(booksOfInterest.isEmpty)
+      talisantProfit = totalProfit
+    else {
+      talisantProfit = (contract.profitMargin / booksOfInterest.size) * totalProfit
+      val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
+      Accounting.addRecord("profit", talisantProfitRecord)
 
-    val leftover = totalProfit - talisantProfit
+      val leftover = totalProfit - talisantProfit
 
-    books foreach {
-      book => {
-        val bookProfit = (book.balance / botBalance) * leftover
-        val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
-        Accounting.addRecord("profit", bookProfitRecord)
+      booksOfInterest foreach {
+        book => {
+          if (book.balance > 0) {
+            val bookProfit = (book.balance / botBalance) * leftover
+            val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
+            Accounting.addRecord("profit", bookProfitRecord)
+          }
+        }
       }
     }
   }

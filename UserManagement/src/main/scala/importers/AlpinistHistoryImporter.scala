@@ -57,13 +57,13 @@ object AlpinistHistoryImporter {
     sources foreach {
       src => {
         val bufferedSource = io.Source.fromFile(src)
+        var lineNumber = 0
 
-        var isFirstLine = true
-
-        for (line <- bufferedSource getLines) {
+        for (line <- bufferedSource getLines)
+        {
           breakable {
-            if(isFirstLine) {
-              isFirstLine = false
+            if(lineNumber == 0) {
+              lineNumber = lineNumber + 1
               break
             }
 
@@ -73,7 +73,9 @@ object AlpinistHistoryImporter {
               val record = AlpinistRecord(cols)
               allRecordsRaw(cols(1) toLong) = record
             } else
-              logger.error(s"Invalid record : $cols")
+              logger.error(s"Invalid record : $cols at line $lineNumber in $src")
+
+            lineNumber = lineNumber + 1
           }
         }
       }

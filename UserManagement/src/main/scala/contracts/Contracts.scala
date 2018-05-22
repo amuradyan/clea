@@ -17,7 +17,7 @@ case class BotContractSpec(botName: String, profitMargin: Float)
 case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float, createdAt: Long)
 object BotContract {
   def apply(userId: String, botContractSpec: BotContractSpec): BotContract =
-    BotContract(new ObjectId().toString, userId, botContractSpec.botName, botContractSpec.profitMargin, System.currentTimeMillis())
+    BotContract(new ObjectId().toString, userId, botContractSpec.botName, botContractSpec.profitMargin / 100, System.currentTimeMillis())
 }
 
 class Contracts
@@ -53,11 +53,11 @@ object Contracts {
 
     if(talisantContracts != null && !talisantContracts.isEmpty) {
       val contract = talisantContracts(0)
-      contract.profitMargin = contract.profitMargin + (1 - contractSpec.profitMargin)
+      contract.profitMargin = contract.profitMargin + (1 - contractSpec.profitMargin / 100)
       contractsCollection.replaceOne(and(equal("userId", username), equal("botName", contractSpec.botName)),
         contract, new UpdateOptions().upsert(true))
     } else {
-      contractsCollection.insertOne(BotContract("talisant", BotContractSpec(contractSpec.botName, (1 - contractSpec.profitMargin)))).results()
+      contractsCollection.insertOne(BotContract("talisant", BotContractSpec(contractSpec.botName, 100 - contractSpec.profitMargin ))).results()
     }
   }
 
