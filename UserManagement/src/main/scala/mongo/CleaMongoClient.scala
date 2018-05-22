@@ -1,6 +1,8 @@
 package mongo
 
 import accounting.{Book, BookRecord}
+import adapters.alpinist.adapter.{AlpinistDeal, AlpinistRecordPointer}
+import adapters.cleversniper.adapter.CleversniperDeal
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
 import contracts.BotContract
@@ -47,4 +49,5 @@ object CleaMongoClient {
   def getBooksCollection: MongoCollection[Book] = cleaDB.getCollection("books")
   def getBookRecordsCollection: MongoCollection[BookRecord] = cleaDB.getCollection("book_records")
   def getContractsCollection: MongoCollection[BotContract] = cleaDB.getCollection("contracts")
+  def getAlpinistRecordPointerCollection: MongoCollection[AlpinistRecordPointer] = cleaDB.getCollection("alpinistRecordPointer")
 }

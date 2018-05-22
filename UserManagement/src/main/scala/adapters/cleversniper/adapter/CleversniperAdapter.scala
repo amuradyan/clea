@@ -1,10 +1,12 @@
-package adapters.cleversniper
+package adapters.cleversniper.adapter
 
 import java.util
 
+import accounting.Accounting
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.typesafe.scalalogging.Logger
+import org.quartz.{Job, JobExecutionContext}
 
 import scalaj.http.{Http, HttpOptions}
 
@@ -28,11 +30,24 @@ case class Order(order_number: String,
 case class CleversniperDeal(ID: String, Profit: Float, CreatedAt: String, LastUpdated: String,
                             BuyOrder: Order, SellOrder: Order)
 
+class CleversniperFetcher() extends Job {
+  override def execute(context: JobExecutionContext) = {
+    CleversniperAdapter.run
+  }
+}
+
 class CleversniperAdapter
 object CleversniperAdapter {
   val logger = Logger[CleversniperAdapter]
 
-  def getDeals: List[CleversniperDeal] = {
+  def run = {
+    val deals = CleversniperAdapter.getDeals
+    val totalProfit = deals map { _.Profit } sum
+
+    Accounting.distributeProfit(totalProfit, "cleversniper")
+  }
+
+  private def getDeals: List[CleversniperDeal] = {
     var dealList = List[CleversniperDeal]()
 
     try {
@@ -48,7 +63,6 @@ object CleversniperAdapter {
 
         if (dealsResponse.code == 200) {
           val dealsJson = dealsResponse.body.toString
-
           val token = new TypeToken[util.ArrayList[CleversniperDeal]]() {}.getType
 
           val deals: util.ArrayList[CleversniperDeal] = new Gson().fromJson(dealsJson, token)

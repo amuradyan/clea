@@ -8,7 +8,7 @@ import contracts.{BotContract, BotContractSpec, Contracts}
 import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonString, conversions}
+import org.mongodb.scala.bson.conversions
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.Updates._
 import token_management.{LoginSpec, TokenManagement}

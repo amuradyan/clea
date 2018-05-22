@@ -46,6 +46,11 @@ object Helpers {
     override val converter: (BookRecord) => String = (doc) => gson.toJson(doc)
   }
 
+  implicit class AlpinistRecordPointerObservable[C](val observable: Observable[AlpinistRecordPointerRecord]) extends ImplicitObservable[AlpinistRecordPointerRecord] {
+    val gson = new Gson();
+    override val converter: (AlpinistRecordPointerRecord) => String = (doc) => gson.toJson(doc)
+  }
+
   implicit class GenericObservable[C](val observable: Observable[C]) extends ImplicitObservable[C] {
     override val converter: (C) => String = (doc) => doc.toString
   }
