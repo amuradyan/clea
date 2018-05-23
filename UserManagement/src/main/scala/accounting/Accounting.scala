@@ -208,7 +208,7 @@ object Accounting {
         val users = UserManagement.getUsers(UserSearchCriteria(regions = Some(List(region))))
 
         if (users.nonEmpty)
-          filters += in("userId", users map {
+          filters += in("username", users map {
             _.username
           })
       }
@@ -216,7 +216,7 @@ object Accounting {
     }
 
     recordSearchCriteria.bookNames match {
-      case Some(bookNames) => filters += in("bookId", bookNames: _*)
+      case Some(bookNames) => filters += in("bookName", bookNames: _*)
       case None => ;
     }
 
@@ -236,7 +236,7 @@ object Accounting {
     }
 
     recordSearchCriteria.userIds match {
-      case Some(userIds) => filters += in("userId", userIds: _*)
+      case Some(userIds) => filters += in("username", userIds: _*)
       case None => ;
     }
 
