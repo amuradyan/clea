@@ -16,8 +16,8 @@ case class BotContractSpec(botName: String, profitMargin: Float)
 
 case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float, createdAt: Long)
 object BotContract {
-  def apply(userId: String, botContractSpec: BotContractSpec): BotContract =
-    BotContract(new ObjectId().toString, userId, botContractSpec.botName, botContractSpec.profitMargin / 100, System.currentTimeMillis())
+  def apply(username: String, botContractSpec: BotContractSpec): BotContract =
+    BotContract(new ObjectId().toString, username, botContractSpec.botName, botContractSpec.profitMargin / 100, System.currentTimeMillis())
 }
 
 class Contracts
@@ -48,18 +48,18 @@ object Contracts {
 
   def createContract(username: String, contractSpec: BotContractSpec) = {
       val contracts =
-        contractsCollection.find(and(equal("userId", username), equal("botName", contractSpec.botName))).first().results()
+        contractsCollection.find(and(equal("username", username), equal("botName", contractSpec.botName))).first().results()
 
       if( contracts != null && contracts.isEmpty )
         contractsCollection.insertOne(BotContract(username, contractSpec)).results()
 
     val talisantContracts =
-      contractsCollection.find(and(equal("userId", "talisant"), equal("botName", contractSpec.botName))).results()
+      contractsCollection.find(and(equal("username", "talisant"), equal("botName", contractSpec.botName))).results()
 
     if(talisantContracts != null && !talisantContracts.isEmpty) {
       val contract = talisantContracts(0)
       contract.profitMargin = contract.profitMargin + (1 - contractSpec.profitMargin / 100)
-      contractsCollection.replaceOne(and(equal("userId", username), equal("botName", contractSpec.botName)),
+      contractsCollection.replaceOne(and(equal("username", "talisant"), equal("botName", contractSpec.botName)),
         contract, new UpdateOptions().upsert(true))
     } else {
       contractsCollection.insertOne(BotContract("talisant", BotContractSpec(contractSpec.botName, 100 - contractSpec.profitMargin ))).results()

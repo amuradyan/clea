@@ -168,13 +168,13 @@ object Accounting {
     }
   }
 
-  def getBooks(userId: String) = {
+  def getBooks(username: String) = {
     val books = new util.ArrayList[BookModel]()
-    val rawBooks = booksCollection.find(and(equal("owner", userId))).first().results()
+    val rawBooks = booksCollection.find(and(equal("owner", username))).first().results()
 
     if (rawBooks != null && rawBooks.nonEmpty) {
       rawBooks foreach (rb => {
-        val records = recordsCollection.find(and(equal("bookId", rb.name), equal("userId", userId))).results()
+        val records = recordsCollection.find(and(equal("bookId", rb.name), equal("userId", username))).results()
         books.add(BookModel(rb, records.toList))
       })
     }
@@ -254,13 +254,19 @@ object Accounting {
     recordsOfInterest foreach {
       record => {
         if (record.source != "manual") {
-          val relevantBook = allBooks filter { b => b.owner == record.username && b.name == record.bookName } head
+          logger.info(s"The balance of relevant book filters : owner - ${record.username} and name = ${record.source}")
+          val relevantBook = allBooks filter { b => b.owner == record.username && b.name == record.source }
 
-          if (relevantBook != Nil || relevantBook != null) {
-            exposedRecords += BookRecordExposed(record, relevantBook.balance)
-          } else {
-            logger.error(s"Relevant book ${record.bookName} of ${record.username} was not found but record with id ${record._id} exists")
+          val relevantBookBalance = {
+            if (relevantBook.nonEmpty)
+              relevantBook.head.balance
+            else {
+              logger.error(s"Relevant book ${record.bookName} of ${record.username} was not found but record with id ${record._id} exists")
+              0f
+            }
           }
+
+          exposedRecords += BookRecordExposed(record, relevantBookBalance)
         } else {
           exposedRecords += BookRecordExposed(record, 0)
         }
@@ -270,8 +276,8 @@ object Accounting {
     exposedRecords toList
   }
 
-  def addRecord(bookId: String, record: BookRecord) = {
-    val matchedBooks = booksCollection.find(and(equal("name", bookId), equal("owner", record.username))).first().results()
+  def addRecord(bookName: String, record: BookRecord) = {
+    val matchedBooks = booksCollection.find(and(equal("name", bookName), equal("owner", record.username))).first().results()
 
     if (matchedBooks.length != 0) {
       val book = matchedBooks(0)
@@ -283,7 +289,7 @@ object Accounting {
 
       record.currentBalance = book.balance
 
-      booksCollection.replaceOne(and(equal("name", bookId), equal("owner", record.username)), book,
+      booksCollection.replaceOne(and(equal("name", bookName), equal("owner", record.username)), book,
         new UpdateOptions().upsert(true)).results()
 
       recordsCollection.insertOne(record).results()

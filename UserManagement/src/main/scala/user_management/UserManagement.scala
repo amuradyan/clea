@@ -122,10 +122,18 @@ object UserManagement {
     usersCollection.insertOne(newUser).results()
     val insertedUser = getByUsername(userSpec.username)
 
+    Accounting.createBook(insertedUser.username, "profit")
+
     if(userSpec.botContracts != null){
       userSpec.botContracts forEach (Contracts.createContract(insertedUser.username, _))
 
-      Accounting.createBook(insertedUser.username, "profit")
+      val talisantProfitBook = Accounting.getBook("talisant", "profit")
+
+      talisantProfitBook match {
+        case None => Accounting.createBook("talisnat", "profit")
+        case _ => ;
+      }
+
       userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
     }
 
