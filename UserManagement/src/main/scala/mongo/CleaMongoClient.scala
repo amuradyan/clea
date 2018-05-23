@@ -38,7 +38,15 @@ object CleaMongoClient {
   clientSettingsBuilder.credential(credential)
   clientSettingsBuilder.clusterSettings(mongoClusterSettingsBuilder.build())
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[User], classOf[BotContract], classOf[Token], classOf[Book], classOf[BookRecord]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(
+    fromProviders(
+      classOf[User],
+      classOf[BotContract],
+      classOf[Token],
+      classOf[Book],
+      classOf[BookRecord],
+      classOf[AlpinistRecordPointer]),
+    DEFAULT_CODEC_REGISTRY)
 
   val mongoClient = MongoClient(clientSettingsBuilder.build())
 

@@ -6,8 +6,11 @@ import java.util
 import accounting.Accounting
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
 import mongo.CleaMongoClient
+import helpers.Helpers._
+import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
 import org.quartz.{Job, JobExecutionContext}
 
@@ -39,7 +42,10 @@ case class AlpinistDeal(_id: String,
   def getProfit = (orderClose.price - orderOpen.price) * (-1 * orderClose.amount)
 }
 
-case class AlpinistRecordPointer(pos: String)
+case class AlpinistRecordPointer(_id: String, var pos: String)
+object AlpinistRecordPointer{
+  def apply(pos: String): AlpinistRecordPointer = new AlpinistRecordPointer(new ObjectId().toString, pos)
+}
 
 object AlpinistFetcher {
   val formatter = DateTimeFormatter.ofPattern("EEE MMM dd yyyy HH:mm:ss")
@@ -54,14 +60,11 @@ class AlpinistFetcher() extends Job {
 class AlpinistAdapter
 
 object AlpinistAdapter {
-  import helpers.Helpers._
-
   val logger = Logger[AlpinistAdapter]
   val alpinistRecordPointerCollection = CleaMongoClient.getAlpinistRecordPointerCollection
 
   def run = {
     var lastDate = ""
-
     val pointer = alpinistRecordPointerCollection.find().first().results()
 
     if(!pointer.isEmpty)
@@ -76,9 +79,15 @@ object AlpinistAdapter {
     } else
       deals
 
-    alpinistRecordPointerCollection.replaceOne(equal("pos", lastDate), AlpinistRecordPointer(deals.last.dateClosed))
+    if(!pointer.isEmpty){
+      pointer(0).pos = dealsOfInterest(0).dateClosed
+      alpinistRecordPointerCollection.replaceOne(equal("_id", pointer(0)._id), pointer(0), new UpdateOptions().upsert(true)).results()
+    }
+    else
+      alpinistRecordPointerCollection.insertOne(AlpinistRecordPointer(deals.last.dateClosed)).results()
 
     if (!dealsOfInterest.isEmpty) {
+
       val dealsGrouped = dealsOfInterest groupBy {
         _.orderClose.id
       }

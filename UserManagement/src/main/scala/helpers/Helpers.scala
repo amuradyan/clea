@@ -3,6 +3,7 @@ package helpers
 import java.util.concurrent.TimeUnit
 
 import accounting.{Book, BookRecord}
+import adapters.alpinist.adapter.AlpinistRecordPointer
 import com.google.gson.Gson
 import contracts.BotContract
 import org.mongodb.scala._
@@ -46,9 +47,9 @@ object Helpers {
     override val converter: (BookRecord) => String = (doc) => gson.toJson(doc)
   }
 
-  implicit class AlpinistRecordPointerObservable[C](val observable: Observable[AlpinistRecordPointerRecord]) extends ImplicitObservable[AlpinistRecordPointerRecord] {
+  implicit class AlpinistRecordPointerObservable[C](val observable: Observable[AlpinistRecordPointer]) extends ImplicitObservable[AlpinistRecordPointer] {
     val gson = new Gson();
-    override val converter: (AlpinistRecordPointerRecord) => String = (doc) => gson.toJson(doc)
+    override val converter: (AlpinistRecordPointer) => String = (doc) => gson.toJson(doc)
   }
 
   implicit class GenericObservable[C](val observable: Observable[C]) extends ImplicitObservable[C] {
