@@ -21,14 +21,31 @@ import scala.collection.mutable.ListBuffer
 case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float, note: String)
 
 case class BookRecord(_id: String,
-                      userId: String,
-                      bookId: String,
+                      username: String,
+                      bookName: String,
                       date: Long,
-                      `type`: String, // deposit, withdraw
+                      `type`: String,
                       source: String,
                       amount: Float,
                       fee: Float,
                       var currentBalance: Float = 0f)
+
+case class BookRecordExposed(_id: String,
+                             userId: String,
+                             bookId: String,
+                             date: Long,
+                             `type`: String,
+                             source: String,
+                             amount: Float,
+                             fee: Float,
+                             var currentBalance: Float = 0f,
+                             relevantBookBalance: Float = 0f)
+
+object BookRecordExposed {
+  def apply(bookRecord: BookRecord, relevantBookBalance: Float): BookRecordExposed =
+    new BookRecordExposed(bookRecord._id, bookRecord.username, bookRecord.bookName, bookRecord.date, bookRecord.`type`,
+      bookRecord.source, bookRecord.amount, bookRecord.fee, bookRecord.currentBalance, relevantBookBalance)
+}
 
 object BookRecord {
   def apply(userId: String, bookId: String, date: Long, `type`: String, source: String, amount: Float, fee: Float)
@@ -69,27 +86,32 @@ object Accounting {
   val booksCollection = CleaMongoClient.getBooksCollection
   val recordsCollection = CleaMongoClient.getBookRecordsCollection
 
-  def distributeProfit(totalProfit: Float, botName: String, date: LocalDate =  LocalDateTime.now().toLocalDate) {
+  def distributeProfit(totalProfit: Float, botName: String, date: LocalDate = LocalDateTime.now().toLocalDate) {
     val contract = Contracts.getContract("talisant", botName)
-    val booksOfInterest = Accounting.getBooksByName(botName) filter {_.balance > 0 }
-    val botBalance = booksOfInterest map {_.balance} sum
 
-    var talisantProfit = 0f
-    if(booksOfInterest.isEmpty)
-      talisantProfit = totalProfit
-    else {
-      talisantProfit = (contract.profitMargin / booksOfInterest.size) * totalProfit
-      val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
-      Accounting.addRecord("profit", talisantProfitRecord)
+    if (contract != null) {
+      val booksOfInterest = Accounting.getBooksByName(botName) filter {
+        _.balance > 0
+      }
+      val botBalance = booksOfInterest map {
+        _.balance
+      } sum
 
-      val leftover = totalProfit - talisantProfit
+      var talisantProfit = 0f
+      if (booksOfInterest.nonEmpty) {
+        talisantProfit = (contract.profitMargin / booksOfInterest.size) * totalProfit
+        val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
+        Accounting.addRecord("profit", talisantProfitRecord)
 
-      booksOfInterest foreach {
-        book => {
-          if (book.balance > 0) {
-            val bookProfit = (book.balance / botBalance) * leftover
-            val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
-            Accounting.addRecord("profit", bookProfitRecord)
+        val leftover = totalProfit - talisantProfit
+
+        booksOfInterest foreach {
+          book => {
+            if (book.balance > 0) {
+              val bookProfit = (book.balance / botBalance) * leftover
+              val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
+              Accounting.addRecord("profit", bookProfitRecord)
+            }
           }
         }
       }
@@ -107,7 +129,7 @@ object Accounting {
   def getBook(username: String, name: String): Option[BookModel] = {
     val rawBooks = booksCollection.find(and(equal("name", name), equal("owner", username))).first().results()
 
-    if (rawBooks != null && !rawBooks.isEmpty) {
+    if (rawBooks != null && rawBooks.nonEmpty) {
       val book = rawBooks(0)
       val records = recordsCollection.find(and(equal("userId", book.owner), equal("bookId", name))).results()
 
@@ -131,7 +153,7 @@ object Accounting {
   def getBookBrief(username: String, name: String) = {
     val rawBooks = booksCollection.find(and(equal("owner", username), equal("name", name))).first().results()
 
-    if (rawBooks != null && !rawBooks.isEmpty)
+    if (rawBooks != null && rawBooks.nonEmpty)
       Some(BookBrief(rawBooks(0)))
     else
       None
@@ -150,7 +172,7 @@ object Accounting {
     val books = new util.ArrayList[BookModel]()
     val rawBooks = booksCollection.find(and(equal("owner", userId))).first().results()
 
-    if (rawBooks != null && !rawBooks.isEmpty) {
+    if (rawBooks != null && rawBooks.nonEmpty) {
       rawBooks foreach (rb => {
         val records = recordsCollection.find(and(equal("bookId", rb.name), equal("userId", userId))).results()
         books.add(BookModel(rb, records.toList))
@@ -185,7 +207,7 @@ object Accounting {
       case Some(region) => {
         val users = UserManagement.getUsers(UserSearchCriteria(regions = Some(List(region))))
 
-        if (!users.isEmpty)
+        if (users.nonEmpty)
           filters += in("userId", users map {
             _.username
           })
@@ -218,14 +240,38 @@ object Accounting {
       case None => ;
     }
 
-    if (!filters.isEmpty)
-      recordsCollection.find(and(filters: _*)).results()
-    else
-      recordsCollection.find().results()
+    val recordsOfInterest = {
+      if (filters.nonEmpty)
+        recordsCollection.find(and(filters: _*)).results()
+      else
+        recordsCollection.find().results()
+    }
+
+    val allBooks = booksCollection.find().results()
+
+    var exposedRecords = ListBuffer[BookRecordExposed]()
+
+    recordsOfInterest foreach {
+      record => {
+        if (record.source != "manual") {
+          val relevantBook = allBooks filter { b => b.owner == record.username && b.name == record.bookName } head
+
+          if (relevantBook != Nil || relevantBook != null) {
+            exposedRecords += BookRecordExposed(record, relevantBook.balance)
+          } else {
+            logger.error(s"Relevant book ${record.bookName} of ${record.username} was not found but record with id ${record._id} exists")
+          }
+        } else {
+          exposedRecords += BookRecordExposed(record, 0)
+        }
+      }
+    }
+
+    exposedRecords toList
   }
 
   def addRecord(bookId: String, record: BookRecord) = {
-    val matchedBooks = booksCollection.find(and(equal("name", bookId), equal("owner", record.userId))).first().results()
+    val matchedBooks = booksCollection.find(and(equal("name", bookId), equal("owner", record.username))).first().results()
 
     if (matchedBooks.length != 0) {
       val book = matchedBooks(0)
@@ -237,7 +283,7 @@ object Accounting {
 
       record.currentBalance = book.balance
 
-      booksCollection.replaceOne(and(equal("name", bookId), equal("owner", record.userId)), book,
+      booksCollection.replaceOne(and(equal("name", bookId), equal("owner", record.username)), book,
         new UpdateOptions().upsert(true)).results()
 
       recordsCollection.insertOne(record).results()

@@ -38,7 +38,12 @@ object Contracts {
   def getContractByBot(botName: String) = contractsCollection.find(equal("botName", botName)).results()
 
   def getContract(username: String, botName: String) = {
-    contractsCollection.find(and(equal("userId", username), equal("botName", botName))).first().results()(0)
+    val contracts = contractsCollection.find(and(equal("userId", username), equal("botName", botName))).first().results()
+
+    if (contracts.nonEmpty)
+      contracts(0)
+    else
+      null
   }
 
   def createContract(username: String, contractSpec: BotContractSpec) = {

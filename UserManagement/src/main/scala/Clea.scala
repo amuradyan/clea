@@ -3,7 +3,7 @@ import java.security.{KeyStore, SecureRandom}
 import java.util
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
-import accounting.{Accounting, BookRecord, DepositWithdrawSpec, RecordSearchCriteria}
+import accounting._
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
@@ -355,7 +355,7 @@ object Clea extends App with CorsSupport {
                                       recordSearchCriteria.userIds = Some(List(username))
 
                                       val records = Accounting.getRecords(recordSearchCriteria)
-                                      val recordsJ = new util.ArrayList[BookRecord]()
+                                      val recordsJ = new util.ArrayList[BookRecordExposed]()
                                       records foreach {
                                         recordsJ.add
                                       }
@@ -451,7 +451,7 @@ object Clea extends App with CorsSupport {
                     }
 
                     val records = Accounting.getRecords(recordSearchCriteria)
-                    val recordsJ = new util.ArrayList[BookRecord]()
+                    val recordsJ = new util.ArrayList[BookRecordExposed]()
                     records.toList foreach { e => recordsJ.add(e) }
                     val res = new Gson().toJson(recordsJ)
                     complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))

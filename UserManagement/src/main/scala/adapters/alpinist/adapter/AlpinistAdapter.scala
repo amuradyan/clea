@@ -70,16 +70,18 @@ object AlpinistAdapter {
     if(!pointer.isEmpty)
       lastDate = pointer(0).pos
 
-    val deals = AlpinistAdapter.getDeals filter { d => d.dateClosed != null && d.dateClosed != "" } sortWith (_.dateClosed > _.dateClosed)
+    val deals = AlpinistAdapter.getDeals filter { d => d.dateClosed != null && d.dateClosed != "" }
 
-    val dealsOfInterest = if (lastDate != "") {
-      deals filter {
-        _.dateClosed > lastDate
-      }
-    } else
-      deals
+    val dealsOfInterest = {
+      if (lastDate != "") {
+        deals filter {
+          _.dateClosed > lastDate
+        }
+      } else
+        deals
+    } sortWith (_.dateClosed > _.dateClosed)
 
-    if(!pointer.isEmpty){
+    if(!pointer.isEmpty && !dealsOfInterest.isEmpty){
       pointer(0).pos = dealsOfInterest(0).dateClosed
       alpinistRecordPointerCollection.replaceOne(equal("_id", pointer(0)._id), pointer(0), new UpdateOptions().upsert(true)).results()
     }
