@@ -64,7 +64,7 @@ object AlpinistHistoryImporter {
     recordsGroupedByCloseId foreach {
       group => {
         val dailyProfit = getDailyProfit(group._2)
-        Accounting.distributeProfit(dailyProfit, "alpinist")
+        Accounting.distributeProfit(dailyProfit, "alpinist", group._2.head.orderCloseDate)
       }
     }
   }

@@ -51,7 +51,7 @@ object AlpinistFetcher {
   val formatter = DateTimeFormatter.ofPattern("EEE MMM dd yyyy HH:mm:ss")
 }
 
-class AlpinistFetcher() extends Job {
+class AlpinistFetcher extends Job {
   override def execute(context: JobExecutionContext) = {
     AlpinistAdapter.run
   }

@@ -1,6 +1,6 @@
 package accounting
 
-import java.time.{LocalDate, LocalDateTime}
+import java.time.{LocalDate, LocalDateTime, ZoneId}
 import java.util
 
 import com.mongodb.client.model.UpdateOptions
@@ -61,7 +61,7 @@ case class RecordSearchCriteria(var bookNames: Option[List[String]] = None,
 
 
 case class BookModel(book: Book, records: List[BookRecord]) {
-  def getCurrentTotalBalance = if (!records.isEmpty) records(0).currentBalance else 0f
+  def getCurrentTotalBalance = if (records.nonEmpty) records(0).currentBalance else 0f
 }
 
 case class Book(_id: String = new ObjectId().toString, owner: String, name: String, var balance: Float, createdAt: Long)
@@ -86,10 +86,19 @@ object Accounting {
   val booksCollection = CleaMongoClient.getBooksCollection
   val recordsCollection = CleaMongoClient.getBookRecordsCollection
 
-  def distributeProfit(totalProfit: Float, botName: String, date: LocalDate = LocalDateTime.now().toLocalDate) {
+  def distributeProfit(totalProfit: Float, botName: String, date: LocalDateTime = LocalDateTime.now()) {
+    val timestamp = date.atZone(ZoneId.of("GMT+0400")).toInstant.toEpochMilli
     val contract = Contracts.getContract("talisant", botName)
 
     if (contract != null) {
+
+      val totalProfitWithFee = {
+        if (botName == "alpinist")
+          totalProfit - totalProfit * 0.02f
+        else
+          totalProfit
+      }
+
       val booksOfInterest = Accounting.getBooksByName(botName) filter {
         _.balance > 0
       }
@@ -99,17 +108,17 @@ object Accounting {
 
       var talisantProfit = 0f
       if (booksOfInterest.nonEmpty) {
-        talisantProfit = (contract.profitMargin / booksOfInterest.size) * totalProfit
-        val talisantProfitRecord = BookRecord("talisant", "profit", date.toEpochDay, "deposit", botName, talisantProfit, 0f)
+        talisantProfit = contract.profitMargin * totalProfitWithFee
+        val talisantProfitRecord = BookRecord("talisant", "profit", timestamp, "deposit", botName, talisantProfit, 0f)
         Accounting.addRecord("profit", talisantProfitRecord)
 
-        val leftover = totalProfit - talisantProfit
+        val leftover = totalProfitWithFee - talisantProfit
 
         booksOfInterest foreach {
           book => {
             if (book.balance > 0) {
               val bookProfit = (book.balance / botBalance) * leftover
-              val bookProfitRecord = BookRecord(book.owner, "profit", date.toEpochDay, "deposit", botName, bookProfit, 0f)
+              val bookProfitRecord = BookRecord(book.owner, "profit", timestamp, "deposit", botName, bookProfit, 0f)
               Accounting.addRecord("profit", bookProfitRecord)
             }
           }
@@ -142,7 +151,7 @@ object Accounting {
 
   def getBooksByName(name: String) = {
     var books = Seq[Book]()
-    val rawBooks = booksCollection.find(equal("name", name)).first().results()
+    val rawBooks = booksCollection.find(equal("name", name)).results()
 
     if (rawBooks != null)
       books = rawBooks

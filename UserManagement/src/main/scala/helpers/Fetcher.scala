@@ -11,7 +11,7 @@ import org.quartz.impl.StdSchedulerFactory
 object Fetcher {
   val scheduler = StdSchedulerFactory.getDefaultScheduler()
 
-  private def setupCleversniperFetcher = {
+  private def setupCleversniperFetcher {
     import org.quartz.JobBuilder._
     import org.quartz.SimpleScheduleBuilder._
     import org.quartz.TriggerBuilder._
@@ -27,7 +27,7 @@ object Fetcher {
     scheduler.scheduleJob(job, trigger)
   }
 
-  private def setupAlpinistFetcher = {
+  private def setupAlpinistFetcher {
     import org.quartz.JobBuilder._
     import org.quartz.SimpleScheduleBuilder._
     import org.quartz.TriggerBuilder._
@@ -50,3 +50,5 @@ object Fetcher {
     scheduler.start()
   }
 }
+
+

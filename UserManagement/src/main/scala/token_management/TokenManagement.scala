@@ -6,6 +6,8 @@ import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
+import org.quartz.impl.StdSchedulerFactory
+import org.quartz.{Job, JobExecutionContext}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 import user_management.User
 
@@ -17,13 +19,39 @@ case class Token(_id: String, token: String)
 case class LoginSpec(username: String, passwordHash: String)
 case class JWTPayload(iat: Long, exp: Long, sub: String, role: String, region: String)
 
+class TokenCleanup extends Job {
+  val tokenCollection = CleaMongoClient.getTokenCollection
+
+  override def execute(context: JobExecutionContext) = {
+    tokenCollection.drop().results()
+  }
+}
+
+
 class TokenManagement
 object TokenManagement {
 
   val conf = ConfigFactory.load()
   val secret_key = conf.getString("secret_key")
-
+  val scheduler = StdSchedulerFactory.getDefaultScheduler()
   val tokenCollection = CleaMongoClient.getTokenCollection
+
+  def setup {
+    import org.quartz.JobBuilder._
+    import org.quartz.SimpleScheduleBuilder._
+    import org.quartz.TriggerBuilder._
+
+    val job = newJob(classOf[TokenCleanup]).withIdentity("token-cleanup", "cleanup").build()
+
+    val trigger = newTrigger.withIdentity("token-cleanup-trigger", "cleanup-triggers")
+      .startNow()
+      .withSchedule(simpleSchedule()
+        .withIntervalInHours(12)
+        .repeatForever())
+      .build()
+    scheduler.scheduleJob(job, trigger)
+
+  }
 
   def issueToken(user: User) = {
     val header = JwtHeader(JwtAlgorithm.HS512, "JWT")

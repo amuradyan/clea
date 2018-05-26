@@ -72,6 +72,7 @@ object Clea extends App with CorsSupport {
 
   Fetcher.setup
   UserManagement.setup
+  TokenManagement.setup
 
   val route = {
     var payload: JWTPayload = null
@@ -479,4 +480,5 @@ object Clea extends App with CorsSupport {
   }
 
   Await.ready(f, Duration.Inf)
-}
+
+  }
