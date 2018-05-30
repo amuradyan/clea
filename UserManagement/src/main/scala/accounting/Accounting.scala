@@ -282,7 +282,7 @@ object Accounting {
       }
     }
 
-    exposedRecords toList
+    exposedRecords sortBy(_.date) toList
   }
 
   def addRecord(bookName: String, record: BookRecord) = {

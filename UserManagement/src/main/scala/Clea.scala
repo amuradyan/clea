@@ -453,7 +453,7 @@ object Clea extends App with CorsSupport {
 
                     val records = Accounting.getRecords(recordSearchCriteria)
                     val recordsJ = new util.ArrayList[BookRecordExposed]()
-                    records.toList foreach { e => recordsJ.add(e) }
+                    records foreach { e => recordsJ.add(e) }
                     val res = new Gson().toJson(recordsJ)
                     complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                   }
