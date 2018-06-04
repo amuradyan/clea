@@ -1,9 +1,12 @@
 package adapters.alpinist.importer
 
+import java.time.{LocalDateTime, ZoneOffset}
+
 import accounting.Accounting
 import adapters.alpinist.adapter.AlpinistRecord
 import com.typesafe.scalalogging.Logger
 
+import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.util.control.Breaks._
 
@@ -59,9 +62,12 @@ object AlpinistHistoryImporter {
       }
     }
 
-    val recordsGroupedByCloseId = allRecordsRaw map (_._2) groupBy (_.orderCloseDate)
+    implicit val localDateOrdering: Ordering[LocalDateTime] = Ordering.by(_.toEpochSecond(ZoneOffset.UTC))
 
-    recordsGroupedByCloseId foreach {
+    val recordsGroupedByCloseId = allRecordsRaw map (_._2) groupBy (_.orderCloseDate)
+    val sortedRecordGroups = ListMap(recordsGroupedByCloseId.toSeq.sortBy(_._1):_*)
+
+    sortedRecordGroups foreach {
       group => {
         val dailyProfit = getDailyProfit(group._2)
         Accounting.distributeProfit(dailyProfit, "alpinist", group._2.head.orderCloseDate)

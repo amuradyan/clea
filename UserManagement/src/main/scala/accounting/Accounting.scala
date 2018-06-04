@@ -102,13 +102,12 @@ object Accounting {
       val booksOfInterest = Accounting.getBooksByName(botName) filter {
         _.balance > 0
       }
-      val botBalance = booksOfInterest map {
-        _.balance
-      } sum
-
-      var talisantProfit = 0f
       if (booksOfInterest.nonEmpty) {
-        talisantProfit = contract.profitMargin * totalProfitWithFee
+        val botBalance = booksOfInterest map {
+          _.balance
+        } sum
+
+        val talisantProfit = contract.profitMargin * totalProfitWithFee
         val talisantProfitRecord = BookRecord("talisant", "profit", timestamp, "deposit", botName, talisantProfit, 0f)
         Accounting.addRecord("profit", talisantProfitRecord)
 
@@ -265,6 +264,7 @@ object Accounting {
         if (record.source != "manual") {
           logger.info(s"The balance of relevant book filters : owner - ${record.username} and name = ${record.source}")
           val relevantBook = allBooks filter { b => b.owner == record.username && b.name == record.source }
+          val balanceAtThatTime = recordsOfInterest filter {_.date <= record.date} map {_.amount} sum
 
           val relevantBookBalance = {
             if (relevantBook.nonEmpty)
