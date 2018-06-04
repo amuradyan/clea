@@ -23,6 +23,7 @@ import helpers.{CorsSupport, Fetcher}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import contracts.{BotContract, BotContractSpec, Contracts}
+import mailer.TalisantMailer
 
 /**
   * Created by spectrum on 5/2/2018.
@@ -95,6 +96,10 @@ object Clea extends App with CorsSupport {
                 post {
                   entity(as[String]) { loginSpecJson => {
                     val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
+
+                    if(!loginSpec.isValid)
+                      complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+
                     val token = UserManagement.login(loginSpec)
 
                     token match {
@@ -160,6 +165,10 @@ object Clea extends App with CorsSupport {
                       if (payload.role.equalsIgnoreCase("admin")) {
                         logger.info(userSpecJson)
                         val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
+
+                        if(!userSpec.isValid)
+                          complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
+
                         val newUser = UserManagement.createUser(userSpec)
                         val res = new Gson().toJson(UserExposed(newUser.username))
                         complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
@@ -252,12 +261,20 @@ object Clea extends App with CorsSupport {
                         patch {
                           entity(as[String]) {
                             userUpdateSpecJson => {
+                              val userUpdateSpec = new Gson().fromJson(userUpdateSpecJson, classOf[UserUpdateSpec])
+                              if(!userUpdateSpec.isValid)
+                                complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user update spec"))
+
                               if (payload.sub.equalsIgnoreCase("admin")) {
-                                UserManagement.updateUser(username, new Gson().fromJson(userUpdateSpecJson, classOf[UserUpdateSpec]))
+                                UserManagement.updateUser(username, userUpdateSpec)
                                 val res = new Gson().toJson(UserExposed(username))
+                                TalisantMailer.sendDataChangeReply(username, userUpdateSpec)
                                 complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                              } else
+
+                              } else {
+                                TalisantMailer.sendDataChangeRequest(username, userUpdateSpec)
                                 complete(HttpResponse(StatusCodes.OK))
+                              }
                             }
                           }
                         }
@@ -269,14 +286,18 @@ object Clea extends App with CorsSupport {
                           entity(as[String]) {
                             passwordResetSpecJson => {
                               val passwordResetSpec = new Gson().fromJson(passwordResetSpecJson, classOf[PasswordResetSpec])
+
+                              if(!passwordResetSpec.isValid)
+                                complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid password reset spec"))
+
                               payload.role match {
                                 case "admin" => {
                                   UserManagement.changePassword(username, passwordResetSpec)
-                                  //                                  Mailer.sendPasswordResetReply(username, passwordResetSpec)
+                                  TalisantMailer.sendPasswordResetReply(username, passwordResetSpec)
                                   complete("Password reset")
                                 }
                                 case "client" => {
-                                  //                                  Mailer.sendPasswordResetRequest(username, passwordResetSpec)
+                                  TalisantMailer.sendPasswordResetRequest(username, passwordResetSpec)
                                   complete("Password reset request sent")
                                 }
                                 case _ => complete(HttpResponse(StatusCodes.Unauthorized))
@@ -293,14 +314,17 @@ object Clea extends App with CorsSupport {
                             botContractSpecJson => {
                               val botContractSpec = new Gson().fromJson(botContractSpecJson, classOf[BotContractSpec])
 
+                              if(!botContractSpec.isValid)
+                                complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid bot contract spec"))
+
                               payload.role match {
                                 case "admin" => {
                                   Contracts.createContract(username, botContractSpec)
-                                  //                                  Mailer.sendAddContractReply(username, botContractSpec)
+                                  TalisantMailer.sendAddContractReply(username, botContractSpec)
                                   complete(s"Deposit request by $username. A record was also added")
                                 }
                                 case "client" => {
-                                  //                                  Mailer.sendAddContractRequest(username, botContractSpec)
+                                  TalisantMailer.sendAddContractRequest(username, botContractSpec)
                                   complete(s"Deposit request by $username")
                                 }
                                 case _ => complete(HttpResponse(StatusCodes.Unauthorized))
@@ -375,16 +399,19 @@ object Clea extends App with CorsSupport {
                                     DWSpecJson => {
                                       val DWSpec = new Gson().fromJson(DWSpecJson, classOf[DepositWithdrawSpec])
 
+                                      if(!DWSpec.isValid)
+                                        complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid deposit/withdraw spec"))
+
                                       payload.role match {
                                         case "admin" => {
                                           val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee)
                                           val book = Accounting.addRecord(bookId, record)
-                                          //                                          Mailer.sendDWReply(username, DWSpec)
+                                          TalisantMailer.sendDWReply(username, DWSpec)
                                           val res = new Gson().toJson(book)
                                           complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                                         }
                                         case "client" => {
-                                          //                                          Mailer.sendDWRequest(username, DWSpec)
+                                          TalisantMailer.sendDWRequest(username, DWSpec)
                                           complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "Done")))
                                         }
                                       }

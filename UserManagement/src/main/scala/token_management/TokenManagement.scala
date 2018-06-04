@@ -16,7 +16,9 @@ import user_management.User
   */
 
 case class Token(_id: String, token: String)
-case class LoginSpec(username: String, passwordHash: String)
+case class LoginSpec(username: String, passwordHash: String) {
+  def isValid = username != null && username.nonEmpty && passwordHash != null && passwordHash.nonEmpty
+}
 case class JWTPayload(iat: Long, exp: Long, sub: String, role: String, region: String)
 
 class TokenCleanup extends Job {

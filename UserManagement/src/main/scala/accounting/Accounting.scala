@@ -10,6 +10,7 @@ import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
 import helpers.Helpers._
+import helpers.Validators
 import org.mongodb.scala.bson.conversions
 import user_management.{UserManagement, UserSearchCriteria}
 
@@ -18,7 +19,17 @@ import scala.collection.mutable.ListBuffer
 /**
   * Created by spectrum on 5/14/2018.
   */
-case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float, note: String)
+case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float, note: String) {
+  def isValid = {
+    `type` != null && `type`.nonEmpty && Validators.isValidType(`type`) &&
+     bookId != null && Validators.isValidBookName(bookId) &&
+    source != null && Validators.isValidSource(source) &&
+    amount > 0 && fee > 0 &&
+      ((`type`.equalsIgnoreCase("manual") && Validators.isValidBotName(bookId)) ||
+       (!`type`.equalsIgnoreCase("manual") && bookId.equalsIgnoreCase("profit")))
+  }
+
+}
 
 case class BookRecord(_id: String,
                       username: String,
@@ -264,7 +275,11 @@ object Accounting {
         if (record.source != "manual") {
           logger.info(s"The balance of relevant book filters : owner - ${record.username} and name = ${record.source}")
           val relevantBook = allBooks filter { b => b.owner == record.username && b.name == record.source }
-          val balanceAtThatTime = recordsOfInterest filter {_.date <= record.date} map {_.amount} sum
+          val balanceAtThatTime = recordsOfInterest filter {
+            _.date <= record.date
+          } map {
+            _.amount
+          } sum
 
           val relevantBookBalance = {
             if (relevantBook.nonEmpty)
@@ -282,7 +297,7 @@ object Accounting {
       }
     }
 
-    exposedRecords sortBy(_.date) toList
+    exposedRecords sortBy (_.date) toList
   }
 
   def addRecord(bookName: String, record: BookRecord) = {

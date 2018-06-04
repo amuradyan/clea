@@ -5,7 +5,10 @@ import java.util
 import accounting.{Accounting, BookBrief}
 import com.mongodb.client.model.UpdateOptions
 import contracts.{BotContract, BotContractSpec, Contracts}
+
+import scala.util.control.Breaks._
 import helpers.Helpers._
+import helpers.Validators
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.conversions
@@ -20,7 +23,7 @@ import scala.collection.mutable.ListBuffer
   */
 object User {
   def apply(userSpec: UserSpec): User = new User(new ObjectId().toString, userSpec.name, userSpec.surname,
-      userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash)
+    userSpec.username, userSpec.email, userSpec.phone, userSpec.region, userSpec.role, userSpec.passwordHash)
 }
 
 case class User(_id: String,
@@ -41,10 +44,44 @@ case class UserSpec(name: String,
                     region: String,
                     role: String,
                     var passwordHash: String,
-                    botContracts: util.ArrayList[BotContractSpec])
+                    botContracts: util.ArrayList[BotContractSpec]) {
+  def isValid = {
+    name != null && name.nonEmpty &&
+      surname != null && surname.nonEmpty &&
+      username != null && username.nonEmpty &&
+      email != null && Validators.isEmail(email) &&
+      phone != null && Validators.isPhoneNumber(phone) &&
+      region != null && Validators.isRegion(region)
+    role != null && Validators.isRole(role) &&
+      passwordHash != null && passwordHash.nonEmpty &&
+      areContractsValid(botContracts)
+  }
 
-case class UserUpdateSpec(email: String, phone: String, note: String = "")
-case class PasswordResetSpec(oldPassword: String, newPassword: String, note: String = "")
+  private def areContractsValid(botContracts: util.ArrayList[BotContractSpec]) = {
+    var res = true
+
+    breakable {
+      botContracts forEach {
+        contract => {
+          if (!contract.isValid) {
+            res = false
+            break
+          }
+        }
+      }
+    }
+
+    res
+  }
+}
+
+case class UserUpdateSpec(email: String, phone: String, note: String = "") {
+  def isValid = (email != null && Validators.isEmail(email)) || (phone != null && Validators.isPhoneNumber(phone))
+}
+
+case class PasswordResetSpec(oldPassword: String, newPassword: String, note: String = "") {
+  def isValid = oldPassword != null && oldPassword.nonEmpty && newPassword != null && newPassword.nonEmpty
+}
 
 object UserExposed {
   def apply(user: User): UserExposed = {
@@ -74,7 +111,6 @@ case class UserExposed(name: String,
 case class UserSearchCriteria(userIds: Option[List[String]] = None, regions: Option[List[String]] = None)
 
 
-
 object UserManagement {
   val usersCollection = CleaMongoClient.getUsersCollection
 
@@ -88,9 +124,8 @@ object UserManagement {
   def setup {
     val admins = usersCollection.find(equal("username", "admin")).first().results()
 
-    if (admins.isEmpty) {
-      val user = usersCollection.insertOne(admin).results()
-    }
+    if (admins.isEmpty)
+      usersCollection.insertOne(admin).results()
 
     val talisants = usersCollection.find(equal("username", "talisant")).first().results()
 
@@ -124,8 +159,10 @@ object UserManagement {
 
     Accounting.createBook(insertedUser.username, "profit")
 
-    if(userSpec.botContracts != null){
-      userSpec.botContracts forEach (Contracts.createContract(insertedUser.username, _))
+    if (userSpec.botContracts != null) {
+      userSpec.botContracts forEach {
+        contract => Contracts.createContract(insertedUser.username, contract)
+      }
 
       val talisantProfitBook = Accounting.getBook("talisant", "profit")
 
@@ -153,10 +190,10 @@ object UserManagement {
   def updateUser(username: String, userUpdateSpec: UserUpdateSpec) = {
     val user = UserManagement.getByUsername(username)
 
-    if(userUpdateSpec.email != null)
+    if (userUpdateSpec.email != null)
       user.email = userUpdateSpec.email
 
-    if(userUpdateSpec.phone != null)
+    if (userUpdateSpec.phone != null)
       user.phone = userUpdateSpec.phone
 
     UserManagement.save(user)
@@ -166,12 +203,12 @@ object UserManagement {
     val filters = new ListBuffer[conversions.Bson]()
 
     userSearchCriteria.regions match {
-      case Some(regions) => filters += in("region", regions:_*)
+      case Some(regions) => filters += in("region", regions: _*)
       case None => ;
     }
 
     userSearchCriteria.userIds match {
-      case Some(userIds) => filters += in("username", userIds:_*)
+      case Some(userIds) => filters += in("username", userIds: _*)
       case None => ;
     }
 
@@ -186,7 +223,7 @@ object UserManagement {
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
     val user = UserManagement.getByUsername(username)
 
-    if(passwordResetSpec.oldPassword.equals(user.passwordHash))
+    if (passwordResetSpec.oldPassword.equals(user.passwordHash))
       usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
   }
 }
