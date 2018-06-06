@@ -41,7 +41,7 @@ Content:
 
 Subject: **operation** request  
 Content: 
-> username: **username**
+> username: **username**  
 > operation: **operation**  
 > amount: **amount**  
 > book: **book**  
