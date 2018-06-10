@@ -81,14 +81,14 @@ object AlpinistAdapter {
         deals
     } sortWith (_.dateClosed > _.dateClosed)
 
-    if(!pointer.isEmpty && !dealsOfInterest.isEmpty){
+    if(!pointer.isEmpty && dealsOfInterest.nonEmpty){
       pointer(0).pos = dealsOfInterest(0).dateClosed
       alpinistRecordPointerCollection.replaceOne(equal("_id", pointer(0)._id), pointer(0), new UpdateOptions().upsert(true)).results()
     }
     else
-      alpinistRecordPointerCollection.insertOne(AlpinistRecordPointer(deals.last.dateClosed)).results()
+      alpinistRecordPointerCollection.insertOne(AlpinistRecordPointer(dealsOfInterest.last.dateClosed)).results()
 
-    if (!dealsOfInterest.isEmpty) {
+    if (dealsOfInterest.nonEmpty) {
 
       val dealsGrouped = dealsOfInterest groupBy {
         _.orderClose.id

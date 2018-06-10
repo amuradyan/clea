@@ -15,6 +15,7 @@ import com.google.api.client.util.Base64
 import com.google.api.client.util.store.FileDataStoreFactory
 import com.google.api.services.gmail.model.Message
 import com.google.api.services.gmail.{Gmail, GmailScopes}
+import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
 
 /**
@@ -26,11 +27,11 @@ final class InvalidPayloadException(val msg: String) extends Throwable
 
 // This is the mail builder despite the name
 final case class MailPayload(var from: String = "",
-                       var to: String = "",
-                       var subject: String = "",
-                       var message: String = "",
-                       var cc: List[String] = List[String](),
-                       var bcc: List[String] = List[String]())
+                             var to: String = "",
+                             var subject: String = "",
+                             var message: String = "",
+                             var cc: List[String] = List[String](),
+                             var bcc: List[String] = List[String]())
 
 final class Mail {
 
@@ -49,12 +50,14 @@ final class Mail {
   }
 
   def andSubject(subject: String) = withSubject(subject)
+
   def withSubject(subject: String) = {
     payload.subject = subject
     this
   }
 
   def andMessage(message: String) = withMessage(message)
+
   def withMessage(message: String) = {
     payload.message = message
     this
@@ -72,9 +75,15 @@ final class Mail {
 
   @throws(classOf[InvalidPayloadException])
   def darling: Unit = {
+    val conf = ConfigFactory.load()
+    val doSend = conf.getBoolean("app.mailer")
+
     if (isPayloadValid) {
       val email = createEmail(payload)
-      sendMessage(service, "me", email)
+
+      if (doSend)
+        sendMessage(service, "me", email)
+
     } else {
       throw new InvalidPayloadException(getValidationError)
     }
@@ -108,7 +117,7 @@ object Mail {
 
   private val service = new Gmail.Builder(httpTransport, jsonFactory, getCredentials)
     .setApplicationName("Clea")
-    .build();
+    .build()
 
   private val logger = Logger[Mail]
 

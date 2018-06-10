@@ -196,7 +196,8 @@ object UserManagement {
     if (userUpdateSpec.phone != null)
       user.phone = userUpdateSpec.phone
 
-    UserManagement.save(user)
+    val updateResult = UserManagement.save(user)
+    if (updateResult.nonEmpty) updateResult.head else Nil
   }
 
   def getUsers(userSearchCriteria: UserSearchCriteria) = {

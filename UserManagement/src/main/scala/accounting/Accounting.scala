@@ -67,7 +67,7 @@ case class RecordSearchCriteria(var bookNames: Option[List[String]] = None,
                                 var dateFrom: Option[Long] = None,
                                 var dateTo: Option[Long] = None,
                                 var userIds: Option[List[String]] = None,
-                                var region: Option[String] = None,
+                                var region: Option[List[String]] = None,
                                 var sources: Option[List[String]] = None)
 
 
@@ -224,7 +224,7 @@ object Accounting {
 
     recordSearchCriteria.region match {
       case Some(region) => {
-        val users = UserManagement.getUsers(UserSearchCriteria(regions = Some(List(region))))
+        val users = UserManagement.getUsers(UserSearchCriteria(regions = Some(region)))
 
         if (users.nonEmpty)
           filters += in("username", users map {
@@ -319,6 +319,6 @@ object Accounting {
       recordsCollection.insertOne(record).results()
 
       book
-    }
+    } else Nil
   }
 }

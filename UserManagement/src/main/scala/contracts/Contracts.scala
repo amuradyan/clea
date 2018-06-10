@@ -15,7 +15,7 @@ import org.bson.types.ObjectId
   * Created by spectrum on 5/15/2018.
   */
 case class BotContractSpec(botName: String, profitMargin: Float) {
-  def isValid = botName != null && Validators.isValidBotName(botName) && profitMargin != null && 0 <= profitMargin && profitMargin <= 100
+  def isValid = botName != null && Validators.isValidBotName(botName) && 0 <= profitMargin && profitMargin <= 100
 }
 
 case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float, createdAt: Long)
