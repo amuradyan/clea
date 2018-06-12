@@ -125,8 +125,14 @@ trait Paths {
                           complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
 
                         val newUser = UserManagement.createUser(userSpec)
-                        val res = new Gson().toJson(UserExposed(newUser.username))
-                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+
+                        newUser match {
+                          case Some(u) => {
+                            val res = new Gson().toJson(UserExposed(u.username))
+                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                          }
+                          case None => complete(HttpResponse(StatusCodes.NotFound))
+                        }
                       } else {
                         complete(HttpResponse(StatusCodes.Unauthorized))
                       }
@@ -146,11 +152,18 @@ trait Paths {
                             allUsers = UserManagement.getUsers(UserSearchCriteria(users, regions)).map(UserExposed(_))
                           case "manager" => {
                             val requestor = UserManagement.getByUsername(payload.sub)
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(users, Some(List(requestor.region)))).map(UserExposed(_))
+                            requestor match {
+                              case Some(u) => allUsers = UserManagement.getUsers(UserSearchCriteria(users, Some(List(u.region)))).map(UserExposed(_))
+                              case None => complete(HttpResponse(StatusCodes.NotFound))
+                            }
                           }
                           case "client" => {
                             val requestor = UserManagement.getByUsername(payload.sub)
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(Some(List(requestor.username)), None)).map(UserExposed(_))
+
+                            requestor match {
+                              case Some(u) => allUsers = UserManagement.getUsers(UserSearchCriteria(Some(List(u.username)), None)).map(UserExposed(_))
+                              case None => complete(HttpResponse(StatusCodes.NotFound))
+                            }
                           }
                         }
 
@@ -187,10 +200,15 @@ trait Paths {
                           case "manager" => {
                             val manager = UserManagement.getByUsername(payload.sub)
 
-                            if (manager.region.equalsIgnoreCase(user.region))
-                              res = new Gson().toJson(UserExposed(username))
-                            else
-                              complete(HttpResponse(StatusCodes.Unauthorized))
+                            manager match {
+                              case Some(m) => {
+                                if (m.region.equalsIgnoreCase(m.region))
+                                  res = new Gson().toJson(UserExposed(username))
+                                else
+                                  complete(HttpResponse(StatusCodes.Unauthorized))
+                              }
+                              case None => complete(HttpResponse(StatusCodes.NotFound))
+                            }
                           }
                           case "client" => {
                             if (payload.sub.equalsIgnoreCase(username))
@@ -295,10 +313,15 @@ trait Paths {
                             payload.role match {
                               case "admin" => contracts = Contracts.getContractsOf(username)
                               case "manager" => {
-                                if (payload.region.equals(user.region))
-                                  contracts = Contracts.getContractsOf(username)
-                                else
-                                  complete(HttpResponse(StatusCodes.Unauthorized))
+                                user match {
+                                  case Some(u) => {
+                                    if (payload.region.equals(u.region))
+                                      contracts = Contracts.getContractsOf(username)
+                                    else
+                                      complete(HttpResponse(StatusCodes.Unauthorized))
+                                  }
+                                  case None => complete(HttpResponse(StatusCodes.NotFound))
+                                }
                               }
                               case "client" => {
                                 if (payload.sub.equals(username))
@@ -331,22 +354,27 @@ trait Paths {
                                   'sources.as[List[String]].?) {
                                   (books, dateFrom, dateTo, userIDs, regions, sources) => {
 
-                                    if (payload.sub.equals(username) || payload.role.equals("admin") ||
-                                      (payload.role.equals("manager") && payload.region.equals(user.region))) {
-                                      val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
+                                    user match {
+                                      case Some(u) => {
+                                        if (payload.sub.equals(username) || payload.role.equals("admin") ||
+                                          (payload.role.equals("manager") && payload.region.equals(u.region))) {
+                                          val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
 
-                                      recordSearchCriteria.bookNames = Some(List(bookId))
-                                      recordSearchCriteria.userIds = Some(List(username))
+                                          recordSearchCriteria.bookNames = Some(List(bookId))
+                                          recordSearchCriteria.userIds = Some(List(username))
 
-                                      val records = Accounting.getRecords(recordSearchCriteria)
-                                      val recordsJ = new util.ArrayList[BookRecordExposed]()
-                                      records foreach {
-                                        recordsJ.add
+                                          val records = Accounting.getRecords(recordSearchCriteria)
+                                          val recordsJ = new util.ArrayList[BookRecordExposed]()
+                                          records foreach {
+                                            recordsJ.add
+                                          }
+                                          val res = new Gson().toJson(recordsJ)
+                                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                        } else {
+                                          complete(HttpResponse(StatusCodes.Unauthorized))
+                                        }
                                       }
-                                      val res = new Gson().toJson(recordsJ)
-                                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                                    } else {
-                                      complete(HttpResponse(StatusCodes.Unauthorized))
+                                      case None => complete(HttpResponse(StatusCodes.NotFound))
                                     }
                                   }
                                 }
@@ -382,18 +410,25 @@ trait Paths {
                             pathEnd {
                               corsHandler(origin) {
                                 get {
-                                  if (payload.sub.equals(username) || payload.role.equals("admin") ||
-                                    (payload.role.equals("manager") && payload.region.equals(user.region))) {
-                                    val book = Accounting.getBook(username, bookId)
-                                    book match {
-                                      case Some(b) => {
-                                        val res = new Gson().toJson(book)
-                                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                                      }
-                                      case None => complete(HttpResponse(StatusCodes.NotFound))
+
+                                  user match {
+                                    case Some(u) => {
+                                      if (payload.sub.equals(username) || payload.role.equals("admin") ||
+                                        (payload.role.equals("manager") && payload.region.equals(u.region))) {
+
+                                        val book = Accounting.getBook(username, bookId)
+                                        book match {
+                                          case Some(b) => {
+                                            val res = new Gson().toJson(b)
+                                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                          }
+                                          case None => complete(HttpResponse(StatusCodes.NotFound))
+                                        }
+                                      } else
+                                        complete(HttpResponse(StatusCodes.Unauthorized))
                                     }
-                                  } else
-                                    complete(HttpResponse(StatusCodes.Unauthorized))
+                                    case None => complete(HttpResponse(StatusCodes.NotFound))
+                                  }
                                 }
                               }
                             }
@@ -432,17 +467,22 @@ trait Paths {
                     val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
                     val requestor = UserManagement.getByUsername(payload.sub)
 
-                    payload.role match {
-                      case "manager" => recordSearchCriteria.region = Some(List(requestor.region))
-                      case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
-                      case _ => ;
-                    }
+                    requestor match {
+                      case Some(u) => {
+                        payload.role match {
+                          case "manager" => recordSearchCriteria.region = Some(List(u.region))
+                          case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+                          case _ => ;
+                        }
 
-                    val records = Accounting.getRecords(recordSearchCriteria)
-                    val recordsJ = new util.ArrayList[BookRecordExposed]()
-                    records foreach { e => recordsJ.add(e) }
-                    val res = new Gson().toJson(recordsJ)
-                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                        val records = Accounting.getRecords(recordSearchCriteria)
+                        val recordsJ = new util.ArrayList[BookRecordExposed]()
+                        records foreach { e => recordsJ.add(e) }
+                        val res = new Gson().toJson(recordsJ)
+                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                      }
+                      case None => complete(HttpResponse(StatusCodes.NotFound))
+                    }
                   }
                 }
               }
@@ -464,16 +504,21 @@ trait Paths {
                   val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
                   val requestor = UserManagement.getByUsername(payload.sub)
 
-                  payload.role match {
-                    case "manager" => recordSearchCriteria.region = Some(List(requestor.region))
-                    case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
-                    case _ => ;
+                  requestor match {
+                    case Some(u) => {
+                      payload.role match {
+                        case "manager" => recordSearchCriteria.region = Some(List(u.region))
+                        case "client" => recordSearchCriteria.userIds = Some(List(payload.sub))
+                        case _ => ;
+                      }
+
+                      val records = Accounting.getRecords(recordSearchCriteria)
+                      RepGen.generate(records, format)
+
+                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "")))
+                    }
+                    case None => complete(HttpResponse(StatusCodes.NotFound))
                   }
-
-                  val records = Accounting.getRecords(recordSearchCriteria)
-                  RepGen.generate(records, format)
-
-                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "")))
                 }
               }
             }

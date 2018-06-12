@@ -18,6 +18,8 @@ import token_management.{LoginSpec, TokenManagement}
 
 import scala.collection.mutable.ListBuffer
 
+final class UserNotFound extends Throwable
+
 /**
   * Created by spectrum on 5/14/2018.
   */
@@ -93,8 +95,10 @@ object UserExposed {
   }
 
   def apply(username: String): UserExposed = {
-    val user = UserManagement.getByUsername(username)
-    UserExposed(user)
+    UserManagement.getByUsername(username) match {
+      case Some(u) => UserExposed(u)
+      case None => throw new UserNotFound
+    }
   }
 }
 
@@ -149,7 +153,6 @@ object UserManagement {
       TokenManagement.blacklistToken(token)
   }
 
-  // create user
   def createUser(userSpec: UserSpec) = {
     userSpec.passwordHash = userSpec.passwordHash.toUpperCase
     val newUser = User(userSpec)
@@ -157,28 +160,36 @@ object UserManagement {
     usersCollection.insertOne(newUser).results()
     val insertedUser = getByUsername(userSpec.username)
 
-    Accounting.createBook(insertedUser.username, "profit")
+    insertedUser match {
+      case Some(u) => {
+        Accounting.createBook(u.username, "profit")
 
-    if (userSpec.botContracts != null) {
-      userSpec.botContracts forEach {
-        contract => Contracts.createContract(insertedUser.username, contract)
+        if (userSpec.botContracts != null) {
+          userSpec.botContracts forEach {
+            contract => Contracts.createContract(u.username, contract)
+          }
+
+          val talisantProfitBook = Accounting.getBook("talisant", "profit")
+
+          talisantProfitBook match {
+            case None => Accounting.createBook("talisnat", "profit")
+            case _ => ;
+          }
+
+          userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
+        }
+
+        insertedUser
       }
-
-      val talisantProfitBook = Accounting.getBook("talisant", "profit")
-
-      talisantProfitBook match {
-        case None => Accounting.createBook("talisnat", "profit")
-        case _ => ;
-      }
-
-      userSpec.botContracts forEach (contract => Accounting.createBook(userSpec.username, contract.botName))
+      case None => throw new UserNotFound;
     }
-
-    insertedUser
   }
 
-  def getByUsername(username: String) = {
-    usersCollection.find(equal("username", username)).first().results()(0)
+  def getByUsername(username: String): Option[User] = {
+    val users = usersCollection.find(equal("username", username)).first().results()
+
+    if(users.nonEmpty) Some(users(0))
+    else None
   }
 
   def deleteUser(username: String) = {
@@ -190,14 +201,19 @@ object UserManagement {
   def updateUser(username: String, userUpdateSpec: UserUpdateSpec) = {
     val user = UserManagement.getByUsername(username)
 
-    if (userUpdateSpec.email != null)
-      user.email = userUpdateSpec.email
+    user match {
+      case Some(u) => {
+        if (userUpdateSpec.email != null)
+          u.email = userUpdateSpec.email
 
-    if (userUpdateSpec.phone != null)
-      user.phone = userUpdateSpec.phone
+        if (userUpdateSpec.phone != null)
+          u.phone = userUpdateSpec.phone
 
-    val updateResult = UserManagement.save(user)
-    if (updateResult.nonEmpty) updateResult.head else Nil
+        val updateResult = UserManagement.save(u)
+        if (updateResult.nonEmpty) updateResult.head else null
+      }
+      case None => throw new UserNotFound
+    }
   }
 
   def getUsers(userSearchCriteria: UserSearchCriteria) = {
@@ -221,10 +237,13 @@ object UserManagement {
   def save(user: User) =
     usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 
-  def changePassword(username: String, passwordResetSpec: PasswordResetSpec) = {
-    val user = UserManagement.getByUsername(username)
-
-    if (passwordResetSpec.oldPassword.equals(user.passwordHash))
-      usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
+  def changePassword(username: String, passwordResetSpec: PasswordResetSpec){
+    UserManagement.getByUsername(username) match {
+      case Some(u) => {
+        if (passwordResetSpec.oldPassword.equals(u.passwordHash))
+          usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
+      }
+      case None => throw new UserNotFound
+    }
   }
 }
