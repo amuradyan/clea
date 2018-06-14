@@ -234,6 +234,8 @@ object UserManagement {
     else usersCollection.find().results()
   }
 
+  def getAllUsers = usersCollection.find().results
+
   def save(user: User) =
     usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 

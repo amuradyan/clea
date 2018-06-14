@@ -7,6 +7,8 @@ gradle/
 *.log
 UserManagement/src/main/java/
 UserManagement/src/main/scala/other/
+*.pdf
+*.xlsx
 
 # User-specific stuff
 .idea/**/workspace.xml

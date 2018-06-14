@@ -43,7 +43,8 @@ case class AlpinistDeal(_id: String,
 }
 
 case class AlpinistRecordPointer(_id: String, var pos: String)
-object AlpinistRecordPointer{
+
+object AlpinistRecordPointer {
   def apply(pos: String): AlpinistRecordPointer = new AlpinistRecordPointer(new ObjectId().toString, pos)
 }
 
@@ -67,7 +68,7 @@ object AlpinistAdapter {
     var lastDate = ""
     val pointer = alpinistRecordPointerCollection.find().first().results()
 
-    if(!pointer.isEmpty)
+    if (!pointer.isEmpty)
       lastDate = pointer(0).pos
 
     val deals = AlpinistAdapter.getDeals filter { d => d.dateClosed != null && d.dateClosed != "" }
@@ -81,14 +82,14 @@ object AlpinistAdapter {
         deals
     } sortWith (_.dateClosed > _.dateClosed)
 
-    if(!pointer.isEmpty && dealsOfInterest.nonEmpty){
-      pointer(0).pos = dealsOfInterest(0).dateClosed
-      alpinistRecordPointerCollection.replaceOne(equal("_id", pointer(0)._id), pointer(0), new UpdateOptions().upsert(true)).results()
-    }
-    else
-      alpinistRecordPointerCollection.insertOne(AlpinistRecordPointer(dealsOfInterest.last.dateClosed)).results()
-
     if (dealsOfInterest.nonEmpty) {
+      if (!pointer.isEmpty) {
+        pointer(0).pos = dealsOfInterest(0).dateClosed
+        alpinistRecordPointerCollection.replaceOne(equal("_id", pointer(0)._id), pointer(0), new UpdateOptions().upsert(true)).results()
+      }
+      else
+        alpinistRecordPointerCollection.insertOne(AlpinistRecordPointer(dealsOfInterest.last.dateClosed)).results()
+
 
       val dealsGrouped = dealsOfInterest groupBy {
         _.orderClose.id
