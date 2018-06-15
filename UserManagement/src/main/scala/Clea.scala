@@ -1,8 +1,8 @@
 import java.io.InputStream
 import java.security.{KeyStore, SecureRandom}
 import java.util
-import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
+import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import accounting._
 import akka.Done
 import akka.actor.ActorSystem
@@ -24,6 +24,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import contracts.{BotContract, BotContractSpec, Contracts}
 import mailer.TalisantMailer
+import reports.RepGen
 
 /**
   * Created by spectrum on 5/2/2018.
@@ -64,6 +65,7 @@ object Clea extends App with CorsSupport with Paths {
   Fetcher.setup
   UserManagement.setup
   TokenManagement.setup
+  RepGen.setup
 
   val bindingFuture: Future[ServerBinding] = null
 

@@ -7,15 +7,16 @@ import com.itextpdf.text.{Document, FontFactory, PageSize, Phrase}
 import com.itextpdf.text.pdf.PdfPCell
 import com.itextpdf.text.pdf.PdfPTable
 import com.itextpdf.text.pdf.PdfWriter
-import java.io.FileOutputStream
+import java.io.{File, FileOutputStream}
 import java.text.DecimalFormat
 
 import accounting.BookRecordExposed
 import com.norbitltd.spoiwo.model._
 import com.norbitltd.spoiwo.model.enums.CellBorderStyle
 import com.norbitltd.spoiwo.natures.xlsx.Model2XlsxConversions._
+import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
-import user_management.{User, UserExposed, UserManagement}
+import user_management.{User, UserManagement}
 
 import scala.collection.mutable.ListBuffer
 
@@ -43,6 +44,7 @@ class RepGen
 
 object RepGen {
 
+  val conf = ConfigFactory.load()
   private val logger = Logger[RepGen]
   private val dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
@@ -120,6 +122,19 @@ object RepGen {
     CellFactory.thickCell(total.toString)
   )
 
+  def setup = {
+    import better.files.File
+
+    val root = {
+      if(conf.hasPath("app.reports"))
+        conf.getString("app.reports")
+      else "."
+    }
+
+    File(s"$root/${Formats.PDF}/").createIfNotExists(true, true)
+    File(s"$root/${Formats.XLSX}/").createIfNotExists(true, true)
+  }
+
   private def generateRow(index: Int, user: User, record: BookRecordExposed) = {
     val indexCell = CellFactory.thickCell(index.toString, 0)
     val nameSurnameCell = CellFactory.thinCell(s"${user.name} ${user.surname}", 1)
@@ -189,6 +204,11 @@ object RepGen {
   }
 
   private def saveToFS(report: Sheet, format: String) = {
+    val root = {
+      if(conf.hasPath("app.reports"))
+        conf.getString("app.reports")
+      else "."
+    }
     val name = s"report-${System.currentTimeMillis()}.$format"
 
     format match {
@@ -198,7 +218,7 @@ object RepGen {
         val worksheet = xlsxReport.getSheetAt(0)
         val pdfReport = new Document(PageSize.A4.rotate())
         val reportTable = new PdfPTable(14)
-        PdfWriter.getInstance(pdfReport, new FileOutputStream(name))
+        PdfWriter.getInstance(pdfReport, new FileOutputStream(s"$root/$format/$name"))
         pdfReport.open
         reportTable.setTotalWidth(Array[Float](0.6f, 1.4f, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1))
 
@@ -216,9 +236,11 @@ object RepGen {
         pdfReport.add(reportTable)
         pdfReport.close
       }
-      case Formats.XLSX => report.saveAsXlsx(name)
+      case Formats.XLSX => report.saveAsXlsx(s"$root/$format/$name")
       case _ => throw new UnsupportedFormat
     }
+
+    name
   }
 
   private def generateReport(rows: List[Row], format: String) = {

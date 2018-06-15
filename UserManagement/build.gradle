@@ -43,6 +43,7 @@ repositories {
 }
 
 dependencies {
+    compile group: 'com.github.pathikrit', name: 'better-files_2.12', version: '3.5.0'
     compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.6'
     compile group: 'org.mongodb.scala', name: 'mongo-scala-driver_2.12', version: '2.2.1'
     compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.11'

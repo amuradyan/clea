@@ -1,3 +1,4 @@
+import java.io.File
 import java.util
 
 import Clea._
@@ -11,6 +12,7 @@ import com.google.gson.Gson
 import contracts.{BotContract, BotContractSpec, Contracts}
 import mailer.TalisantMailer
 import reports.RepGen
+import reports.RepGen.Formats
 import token_management.{JWTPayload, LoginSpec, TokenManagement}
 import user_management.{PasswordResetSpec, _}
 
@@ -513,9 +515,12 @@ trait Paths {
                       }
 
                       val records = Accounting.getRecords(recordSearchCriteria)
-                      RepGen.generate(records, format)
-
-                      complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "")))
+                      val filename = RepGen.generate(records, format)
+                      format match {
+                        case Formats.XLSX => getFromFile(new File(filename), ContentTypes.`application/octet-stream`)
+                        case Formats.PDF => getFromFile(new File(filename), ContentTypes.`application/octet-stream`)
+                        case _ => complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Unsupported format"))
+                      }
                     }
                     case None => complete(HttpResponse(StatusCodes.NotFound))
                   }
