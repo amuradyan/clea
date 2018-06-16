@@ -1,6 +1,5 @@
 package adapters.alpinist.adapter
 
-import java.time.format.DateTimeFormatter
 import java.util
 
 import accounting.Accounting
@@ -8,12 +7,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
-import mongo.CleaMongoClient
 import helpers.Helpers._
-import org.bson.types.ObjectId
+import mongo.CleaMongoClient
 import org.mongodb.scala.model.Filters._
-import org.quartz.{Job, JobExecutionContext}
-
 import scalaj.http.{Http, HttpOptions}
 
 /**
@@ -24,7 +20,7 @@ case class AlpinistTicker(symbol: String,
                           ask: Float,
                           mts: Long)
 
-case class AlpinistOrder(id: Long,
+case class AlpinistOrderV1(id: Long,
                          price: Float,
                          amount: Float) {
 }
@@ -35,27 +31,11 @@ case class AlpinistDeal(_id: String,
                         tickerOpen: AlpinistTicker,
                         amount: Float,
                         dateOpened: String,
-                        orderOpen: AlpinistOrder,
+                        orderOpen: AlpinistOrderV1,
                         dateClosed: String,
-                        orderClose: AlpinistOrder,
+                        orderClose: AlpinistOrderV1,
                         tickerClose: AlpinistTicker) {
   def getProfit = (orderClose.price - orderOpen.price) * (-1 * orderClose.amount)
-}
-
-case class AlpinistRecordPointer(_id: String, var pos: String)
-
-object AlpinistRecordPointer {
-  def apply(pos: String): AlpinistRecordPointer = new AlpinistRecordPointer(new ObjectId().toString, pos)
-}
-
-object AlpinistFetcher {
-  val formatter = DateTimeFormatter.ofPattern("EEE MMM dd yyyy HH:mm:ss")
-}
-
-class AlpinistFetcher extends Job {
-  override def execute(context: JobExecutionContext) = {
-    AlpinistAdapter.run
-  }
 }
 
 class AlpinistAdapter

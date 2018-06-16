@@ -241,7 +241,7 @@ trait Paths {
                                 complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user update spec"))
 
                               if (payload.sub.equalsIgnoreCase("admin")) {
-                                if (UserManagement.updateUser(username, userUpdateSpec) != Nil) {
+                                if (UserManagement.updateUser(username, userUpdateSpec) != null) {
                                   val user = UserExposed(username)
                                   val res = new Gson().toJson(user)
                                   TalisantMailer.sendPersonalDataChangeRequestApprovalFromSupportToClient(user, userUpdateSpec)

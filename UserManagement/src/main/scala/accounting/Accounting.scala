@@ -102,14 +102,6 @@ object Accounting {
     val contract = Contracts.getContract("talisant", botName)
 
     if (contract != null) {
-
-      val totalProfitWithFee = {
-        if (botName == "alpinist")
-          totalProfit - totalProfit * 0.02f
-        else
-          totalProfit
-      }
-
       val booksOfInterest = Accounting.getBooksByName(botName) filter {
         _.balance > 0
       }
@@ -118,11 +110,11 @@ object Accounting {
           _.balance
         } sum
 
-        val talisantProfit = contract.profitMargin * totalProfitWithFee
+        val talisantProfit = contract.profitMargin * totalProfit
         val talisantProfitRecord = BookRecord("talisant", "profit", timestamp, "deposit", botName, talisantProfit, 0f)
         Accounting.addRecord("profit", talisantProfitRecord)
 
-        val leftover = totalProfitWithFee - talisantProfit
+        val leftover = totalProfit - talisantProfit
 
         booksOfInterest foreach {
           book => {
