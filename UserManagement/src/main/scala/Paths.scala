@@ -56,16 +56,17 @@ trait Paths {
 
                     if (!loginSpec.isValid)
                       complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                    else {
+                      val token = UserManagement.login(loginSpec)
 
-                    val token = UserManagement.login(loginSpec)
-
-                    token match {
-                      case Some(t) => {
-                        logger.info(s"${loginSpec.username} logged in")
-                        complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                      token match {
+                        case Some(t) => {
+                          logger.info(s"${loginSpec.username} logged in")
+                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                        }
+                        case None =>
+                          complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                       }
-                      case None =>
-                        complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                     }
                   }
                   }
@@ -125,15 +126,16 @@ trait Paths {
 
                         if (!userSpec.isValid)
                           complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
+                        else {
+                          val newUser = UserManagement.createUser(userSpec)
 
-                        val newUser = UserManagement.createUser(userSpec)
-
-                        newUser match {
-                          case Some(u) => {
-                            val res = new Gson().toJson(UserExposed(u.username))
-                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                          newUser match {
+                            case Some(u) => {
+                              val res = new Gson().toJson(UserExposed(u.username))
+                              complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                            }
+                            case None => complete(HttpResponse(StatusCodes.NotFound))
                           }
-                          case None => complete(HttpResponse(StatusCodes.NotFound))
                         }
                       } else {
                         complete(HttpResponse(StatusCodes.Unauthorized))
@@ -239,19 +241,20 @@ trait Paths {
                               val userUpdateSpec = new Gson().fromJson(userUpdateSpecJson, classOf[UserUpdateSpec])
                               if (!userUpdateSpec.isValid)
                                 complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user update spec"))
-
-                              if (payload.sub.equalsIgnoreCase("admin")) {
-                                if (UserManagement.updateUser(username, userUpdateSpec) != null) {
-                                  val user = UserExposed(username)
-                                  val res = new Gson().toJson(user)
-                                  TalisantMailer.sendPersonalDataChangeRequestApprovalFromSupportToClient(user, userUpdateSpec)
-                                  complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                              else {
+                                if (payload.sub.equalsIgnoreCase("admin")) {
+                                  if (UserManagement.updateUser(username, userUpdateSpec) != null) {
+                                    val user = UserExposed(username)
+                                    val res = new Gson().toJson(user)
+                                    TalisantMailer.sendPersonalDataChangeRequestApprovalFromSupportToClient(user, userUpdateSpec)
+                                    complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                  } else {
+                                    complete(HttpResponse(status = StatusCodes.InternalServerError, entity = s"Unable to update user ${username}"))
+                                  }
                                 } else {
-                                  complete(HttpResponse(status = StatusCodes.InternalServerError, entity = s"Unable to update user ${username}"))
+                                  TalisantMailer.sendPersonalDataChangeRequestFromCleaToSupport(UserExposed(username), userUpdateSpec)
+                                  complete(HttpResponse(StatusCodes.OK))
                                 }
-                              } else {
-                                TalisantMailer.sendPersonalDataChangeRequestFromCleaToSupport(UserExposed(username), userUpdateSpec)
-                                complete(HttpResponse(StatusCodes.OK))
                               }
                             }
                           }
@@ -267,18 +270,19 @@ trait Paths {
 
                               if (!passwordResetSpec.isValid)
                                 complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid password reset spec"))
-
-                              payload.role match {
-                                case "admin" => {
-                                  UserManagement.changePassword(username, passwordResetSpec)
-                                  TalisantMailer.sendPasswordResetRequestApprovalFromSupportToClient(UserExposed(username), passwordResetSpec)
-                                  complete("Password reset")
+                              else {
+                                payload.role match {
+                                  case "admin" => {
+                                    UserManagement.changePassword(username, passwordResetSpec)
+                                    TalisantMailer.sendPasswordResetRequestApprovalFromSupportToClient(UserExposed(username), passwordResetSpec)
+                                    complete("Password reset")
+                                  }
+                                  case "client" => {
+                                    TalisantMailer.sendPasswordResetRequestFromCleaToSupport(UserExposed(username), passwordResetSpec)
+                                    complete("Password reset request sent")
+                                  }
+                                  case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                                 }
-                                case "client" => {
-                                  TalisantMailer.sendPasswordResetRequestFromCleaToSupport(UserExposed(username), passwordResetSpec)
-                                  complete("Password reset request sent")
-                                }
-                                case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                               }
                             }
                           }
@@ -294,16 +298,17 @@ trait Paths {
 
                               if (!botContractSpec.isValid)
                                 complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid bot contract spec"))
-
-                              payload.role match {
-                                case "admin" => {
-                                  Contracts.createContract(username, botContractSpec)
-                                  complete(s"Deposit request by $username. A record was also added")
+                              else {
+                                payload.role match {
+                                  case "admin" => {
+                                    Contracts.createContract(username, botContractSpec)
+                                    complete(s"Deposit request by $username. A record was also added")
+                                  }
+                                  case "client" => {
+                                    complete(HttpResponse(status = StatusCodes.InternalServerError, entity = "Not implemented"))
+                                  }
+                                  case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                                 }
-                                case "client" => {
-                                  complete(HttpResponse(status = StatusCodes.InternalServerError, entity = "Not implemented"))
-                                }
-                                case _ => complete(HttpResponse(StatusCodes.Unauthorized))
                               }
                             }
                           }
@@ -390,18 +395,22 @@ trait Paths {
 
                                       if (!DWSpec.isValid)
                                         complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid deposit/withdraw spec"))
-
-                                      payload.role match {
-                                        case "admin" => {
-                                          val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee)
-                                          val book = Accounting.addRecord(bookId, record)
-                                          TalisantMailer.sendDWRequestApprovalFromSupportToClient(UserExposed(username), DWSpec)
-                                          val res = new Gson().toJson(book)
-                                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                                        }
-                                        case "client" => {
-                                          TalisantMailer.sendDWRequestFromCleaToSupport(UserExposed(username), DWSpec)
-                                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "Done")))
+                                      else {
+                                        payload.role match {
+                                          case "admin" => {
+                                            val record = BookRecord(username, bookId, System.currentTimeMillis(), DWSpec.`type`, DWSpec.source, DWSpec.amount, DWSpec.fee)
+                                            val book = Accounting.addRecord(bookId, record)
+                                            if (book != null) {
+                                              TalisantMailer.sendDWRequestApprovalFromSupportToClient(UserExposed(username), DWSpec)
+                                              val res = new Gson().toJson(book)
+                                              complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                                            } else
+                                              complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid deposit/withdraw spec"))
+                                          }
+                                          case "client" => {
+                                            TalisantMailer.sendDWRequestFromCleaToSupport(UserExposed(username), DWSpec)
+                                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, "Done")))
+                                          }
                                         }
                                       }
                                     }

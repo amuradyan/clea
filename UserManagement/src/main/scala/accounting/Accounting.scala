@@ -292,7 +292,7 @@ object Accounting {
     exposedRecords sortBy (_.date) toList
   }
 
-  def addRecord(bookName: String, record: BookRecord) = {
+  def addRecord(bookName: String, record: BookRecord): Book = {
     val matchedBooks = booksCollection.find(and(equal("name", bookName), equal("owner", record.username))).first().results()
 
     if (matchedBooks.length != 0) {
@@ -300,8 +300,9 @@ object Accounting {
 
       if (record.`type`.equals("deposit"))
         book.balance = book.balance + record.amount - record.fee
-      else
-        book.balance = book.balance - record.amount - record.fee
+      else if(book.balance > record.amount)
+        book.balance = book.balance - record.amount
+      else return null
 
       record.currentBalance = book.balance
 
@@ -311,6 +312,6 @@ object Accounting {
       recordsCollection.insertOne(record).results()
 
       book
-    } else Nil
+    } else null
   }
 }

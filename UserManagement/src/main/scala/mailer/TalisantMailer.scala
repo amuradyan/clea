@@ -40,7 +40,10 @@ object TalisantMailer {
         logger.error("Unable to send a deposit/withdraw request mail from clea to talisant support")
         logger.error(s"Reason ${e.msg}")
       }
-      case _: Throwable => logger.error("Unable to send a deposit/withdraw request mail from clea to talisant support")
+      case e: Throwable => {
+        logger.error("Unable to send a deposit/withdraw request mail from clea to talisant support")
+        e.printStackTrace()
+      }
     }
 
   }
