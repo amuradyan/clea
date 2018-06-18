@@ -25,8 +25,8 @@ case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, a
      bookId != null && Validators.isValidBookName(bookId) &&
     source != null && Validators.isValidSource(source) &&
     amount > 0 && fee > 0 &&
-      ((`type`.equalsIgnoreCase("manual") && Validators.isValidBotName(bookId)) ||
-       (!`type`.equalsIgnoreCase("manual") && bookId.equalsIgnoreCase("profit")))
+      ((`type`.equalsIgnoreCase("deposit") && Validators.isValidBotName(bookId)) ||
+       (!`type`.equalsIgnoreCase("deposit") && bookId.equalsIgnoreCase("profit")))
   }
 
 }
