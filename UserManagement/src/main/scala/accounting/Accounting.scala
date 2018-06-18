@@ -19,14 +19,14 @@ import scala.collection.mutable.ListBuffer
 /**
   * Created by spectrum on 5/14/2018.
   */
-case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float, note: String) {
+case class DepositWithdrawSpec(`type`: String, bookId: String, source: String, amount: Float, fee: Float = 0, note: String = "") {
   def isValid = {
     `type` != null && `type`.nonEmpty && Validators.isValidType(`type`) &&
-     bookId != null && Validators.isValidBookName(bookId) &&
-    source != null && Validators.isValidSource(source) &&
-    amount > 0 && fee > 0 &&
+      bookId != null && Validators.isValidBookName(bookId) &&
+      source != null && Validators.isValidSource(source) &&
+      amount > 0 && fee >= 0 &&
       ((`type`.equalsIgnoreCase("deposit") && Validators.isValidBotName(bookId)) ||
-       (!`type`.equalsIgnoreCase("deposit") && bookId.equalsIgnoreCase("profit")))
+        (!`type`.equalsIgnoreCase("deposit") && bookId.equalsIgnoreCase("profit")))
   }
 
 }
@@ -237,7 +237,7 @@ object Accounting {
     }
 
     recordSearchCriteria.dateTo match {
-      case Some(date) => filters += gte("date", date)
+      case Some(date) => filters += lte("date", date)
       case None => ;
     }
 
@@ -300,7 +300,7 @@ object Accounting {
 
       if (record.`type`.equals("deposit"))
         book.balance = book.balance + record.amount - record.fee
-      else if(book.balance > record.amount)
+      else if (book.balance > record.amount)
         book.balance = book.balance - record.amount
       else return null
 

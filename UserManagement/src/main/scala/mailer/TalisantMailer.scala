@@ -193,9 +193,9 @@ object TalisantMailer {
     val body =
       s"""
          |username: ${client.name}
-         |${if (userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
-         |${if (userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
-         |${if (userUpdateSpec.email.nonEmpty) s"note: ${userUpdateSpec.note}"}
+         |${if (userUpdateSpec.email != null && userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
+         |${if (userUpdateSpec.phone != null && userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
+         |${if (userUpdateSpec.note != null  && userUpdateSpec.note.nonEmpty) s"note: ${userUpdateSpec.note}"}
       """.stripMargin
 
     try {
@@ -221,8 +221,8 @@ object TalisantMailer {
          |
          |Request details:
          |
-         |${if (userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
-         |${if (userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
+         | ${if (userUpdateSpec.email != null && userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
+         | ${if (userUpdateSpec.phone != null && userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
          |
          |Best,
          |Talisant support
@@ -250,10 +250,10 @@ object TalisantMailer {
          |
          |Request details:
          |
-         |${if (userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
-         |${if (userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
+         |${if (userUpdateSpec.email != null && userUpdateSpec.email.nonEmpty) s"new email: ${userUpdateSpec.email}"}
+         |${if (userUpdateSpec.phone != null && userUpdateSpec.phone.nonEmpty) s"new phone: ${userUpdateSpec.phone}"}
          |
-         |${if (userUpdateSpec.note.nonEmpty) s"Note: ${userUpdateSpec.note}"}
+         |${if (userUpdateSpec.note != null && userUpdateSpec.note.nonEmpty) s"Note: ${userUpdateSpec.note}"}
          |
          |Best,
          |Talisant support

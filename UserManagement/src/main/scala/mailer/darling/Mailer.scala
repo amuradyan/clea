@@ -83,11 +83,19 @@ final class Mail {
         val gmailUser = payload.from.takeWhile(_ != '@')
         val service = {
           Mail.services.get(gmailUser) match {
-            case Some(s) => s
+            case Some(s) => {
+              logger.info(s"Service found for $gmailUser")
+              s
+            }
             case None => {
+              logger.info(s"Service not found for user [$gmailUser]. Creating one...")
+
               val s = new Gmail.Builder(httpTransport, jsonFactory, Mail.getCredentials(gmailUser))
                 .setApplicationName(appName)
                 .build()
+
+              if(s == null)
+                logger.error(s"Unable to create a service for user [$gmailUser]")
 
               Mail.services.put(gmailUser, s)
               s
@@ -95,6 +103,7 @@ final class Mail {
           }
         }
 
+        logger.info(s"About to send the mail from ${payload.from} to ${payload.to}")
         val email = createEmail(payload)
         sendMessage(service, "me", email)
       } else {
@@ -147,12 +156,20 @@ private object Mail {
     val clientId: InputStream = getClass.getResourceAsStream("/" + (client.asInstanceOf[Config]).getString("secret"))
     val clientSecrets = GoogleClientSecrets.load(jsonFactory, new InputStreamReader(clientId))
 
+    if(clientId == null)
+      logger.error(s"Unable to get credentials for ${gmailUser} at ${"/" + (client.asInstanceOf[Config]).getString("secret")}")
+
     val flow = new GoogleAuthorizationCodeFlow.Builder(httpTransport, jsonFactory, clientSecrets, scopes)
       .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(credentialsFolder)))
       .setAccessType(gmailAccessType)
       .build()
 
-    new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize(gmailUser)
+    val credentials = new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize(gmailUser)
+
+    if(credentials == null)
+      logger.error(s"Unable to get credentials for ${gmailUser} at ${"/" + (client.asInstanceOf[Config]).getString("secret")}")
+
+    credentials
   }
 
   private def createEmail(payload: MailPayload) = {
@@ -197,9 +214,14 @@ private object Mail {
   }
 
   private def sendMessage(service: Gmail, userId: String, emailContent: MimeMessage) = {
-    var message = createMessageWithEmail(emailContent)
-    message = service.users().messages().send(userId, message).execute()
+    try {
+      var message = createMessageWithEmail(emailContent)
+      message = service.users().messages().send(userId, message).execute()
 
-    logger.info(s"Message id: ${message.getId}")
+      logger.info(s"Message id: ${message.getId}")
+    } catch {
+      case e: Throwable => e.printStackTrace()
+    }
+
   }
 }
