@@ -239,11 +239,42 @@ object UserManagement {
   def save(user: User) =
     usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 
+  def get_SHA_512_SecurePassword(passwordToHash: String): String = {
+    import java.nio.charset.StandardCharsets
+    import java.security.MessageDigest
+    import java.security.NoSuchAlgorithmException
+
+    var generatedPassword: String = null
+    try {
+      val md = MessageDigest.getInstance("SHA-512")
+      val bytes = md.digest(passwordToHash.getBytes(StandardCharsets.UTF_8))
+      val sb = new StringBuilder
+      var i = 0
+      while ( {
+        i < bytes.length
+      }) {
+        sb.append(Integer.toString((bytes(i) & 0xff) + 0x100, 16).substring(1))
+
+        {
+          i += 1; i - 1
+        }
+      }
+      generatedPassword = sb.toString
+    } catch {
+      case e: NoSuchAlgorithmException =>
+        e.printStackTrace()
+    }
+    generatedPassword
+  }
+
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec){
     UserManagement.getByUsername(username) match {
       case Some(u) => {
-        if (passwordResetSpec.oldPassword.equals(u.passwordHash))
-          usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", passwordResetSpec.newPassword)).results()
+        val oldPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.oldPassword)
+        if (oldPasswordHash.equals(u.passwordHash)){
+          val newPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.newPassword)
+          usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", newPasswordHash)).results()
+        }
       }
       case None => throw new UserNotFound
     }

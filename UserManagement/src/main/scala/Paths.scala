@@ -523,11 +523,13 @@ trait Paths {
                         case _ => ;
                       }
 
-                      val records = Accounting.getRecords(recordSearchCriteria)
-                      val filename = RepGen.generate(records, format)
                       format match {
-                        case Formats.XLSX => getFromFile(new File(filename), ContentTypes.`application/octet-stream`)
-                        case Formats.PDF => getFromFile(new File(filename), ContentTypes.`application/octet-stream`)
+                        case Formats.PDF | Formats.XLSX=> {
+                          val records = Accounting.getRecords(recordSearchCriteria)
+                          val filename = RepGen.generate(records, format)
+
+                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, filename)))
+                        }
                         case _ => complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Unsupported format"))
                       }
                     }

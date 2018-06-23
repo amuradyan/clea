@@ -2,7 +2,7 @@ package contracts
 
 import java.util
 
-import accounting.Accounting
+import accounting.{Accounting, BookRecord}
 import com.mongodb.client.model.UpdateOptions
 import com.typesafe.scalalogging.Logger
 import mongo.CleaMongoClient
@@ -15,7 +15,8 @@ import org.bson.types.ObjectId
   * Created by spectrum on 5/15/2018.
   */
 case class BotContractSpec(botName: String, profitMargin: Float) {
-  def isValid = botName != null && Validators.isValidBotName(botName) && 0 <= profitMargin && profitMargin <= 100
+  def isValid = botName != null && Validators.isValidBotName(botName) &&
+    0 <= profitMargin && profitMargin <= 100
 }
 
 case class BotContract(_id: String, userId: String, botName: String, var profitMargin: Float, createdAt: Long)
@@ -56,8 +57,10 @@ object Contracts {
     val contracts =
       contractsCollection.find(and(equal("username", username), equal("botName", contractSpec.botName))).first().results()
 
-    if (contracts != null && contracts.isEmpty)
+    if (contracts != null && contracts.isEmpty){
       contractsCollection.insertOne(BotContract(username, contractSpec)).results()
+      Accounting.createBook(username, contractSpec.botName)
+    }
 
     val talisantContracts =
       contractsCollection.find(and(equal("username", "talisant"), equal("botName", contractSpec.botName))).results()
