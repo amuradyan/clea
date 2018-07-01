@@ -511,12 +511,12 @@ trait Paths {
                 'books.as[List[String]].?,
                 'dateFrom.as[Long].?,
                 'dateTo.as[Long].?,
-                'userIDs.as[List[String]].?,
+                'userIds.as[List[String]].?,
                 'regions.as[List[String]].?,
                 'sources.as[List[String]].?,
                 'format.as[String] ? "xlsx") {
-                (books, dateFrom, dateTo, userIDs, regions, sources, format) => {
-                  val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
+                (books, dateFrom, dateTo, userIds, regions, sources, format) => {
+                  val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIds, regions, sources)
                   val requestor = UserManagement.getByUsername(payload.sub)
 
                   requestor match {
