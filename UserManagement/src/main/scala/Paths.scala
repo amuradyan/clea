@@ -1,4 +1,3 @@
-import java.io.File
 import java.util
 
 import Clea._
@@ -51,24 +50,25 @@ trait Paths {
             corsHandler(origin) {
               pathEnd {
                 post {
-                  entity(as[String]) { loginSpecJson => {
-                    val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
+                  entity(as[String]) {
+                    loginSpecJson => {
+                      val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
 
-                    if (!loginSpec.isValid)
-                      complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
-                    else {
-                      val token = UserManagement.login(loginSpec)
+                      if (!loginSpec.isValid)
+                        complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                      else {
+                        val token = UserManagement.login(loginSpec)
 
-                      token match {
-                        case Some(t) => {
-                          logger.info(s"${loginSpec.username} logged in")
-                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                        token match {
+                          case Some(t) => {
+                            logger.info(s"${loginSpec.username} logged in")
+                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                          }
+                          case None =>
+                            complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                         }
-                        case None =>
-                          complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                       }
                     }
-                  }
                   }
                 }
               }
@@ -356,16 +356,18 @@ trait Paths {
                                   'books.as[List[String]].?,
                                   'dateFrom.as[Long].?,
                                   'dateTo.as[Long].?,
-                                  'userIDs.as[List[String]].?,
+                                  'userIds.as[List[String]].?,
                                   'regions.as[List[String]].?,
                                   'sources.as[List[String]].?) {
-                                  (books, dateFrom, dateTo, userIDs, regions, sources) => {
+                                  (books, dateFrom, dateTo, userIds, regions, sources) => {
 
                                     user match {
                                       case Some(u) => {
                                         if (payload.sub.equals(username) || payload.role.equals("admin") ||
                                           (payload.role.equals("manager") && payload.region.equals(u.region))) {
-                                          val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
+
+                                          logger.info(s"RecordSearchCriteria ======== $books, $dateFrom, $dateTo, $userIds, $regions, $sources ===============987")
+                                          val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIds, regions, sources)
 
                                           recordSearchCriteria.bookNames = Some(List(bookId))
                                           recordSearchCriteria.userIds = Some(List(username))
@@ -471,11 +473,13 @@ trait Paths {
                   'books.as[List[String]].?,
                   'dateFrom.as[Long].?,
                   'dateTo.as[Long].?,
-                  'userIDs.as[List[String]].?,
+                  'userIds.as[List[String]].?,
                   'regions.as[List[String]].?,
                   'sources.as[List[String]].?) {
-                  (books, dateFrom, dateTo, userIDs, regions, sources) => {
-                    val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIDs, regions, sources)
+                  (books, dateFrom, dateTo, userIds, regions, sources) => {
+                    logger.info(s"RecordSearchCriteria ======== $books, $dateFrom, $dateTo, $userIds, $regions, $sources ===============987")
+
+                    val recordSearchCriteria = RecordSearchCriteria(books, dateFrom, dateTo, userIds, regions, sources)
                     val requestor = UserManagement.getByUsername(payload.sub)
 
                     requestor match {
@@ -524,7 +528,7 @@ trait Paths {
                       }
 
                       format match {
-                        case Formats.PDF | Formats.XLSX=> {
+                        case Formats.PDF | Formats.XLSX => {
                           val records = Accounting.getRecords(recordSearchCriteria)
                           val filename = RepGen.generate(records, format)
 

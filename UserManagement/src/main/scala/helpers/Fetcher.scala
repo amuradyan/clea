@@ -1,12 +1,24 @@
 package helpers
 
-import adapters.alpinist.adapter.AlpinistFetcher
-import adapters.cleversniper.adapter.CleversniperFetcher
+import adapters.alpinist.adapter.AlpinistAdapterV2
+import adapters.cleversniper.adapter.CleversniperAdapter
 import org.quartz.impl.StdSchedulerFactory
+import org.quartz.{Job, JobExecutionContext}
 
 /**
   * Created by spectrum on 5/19/2018.
   */
+class AlpinistFetcher extends Job {
+  override def execute(context: JobExecutionContext) = {
+    AlpinistAdapterV2.run
+  }
+}
+
+class CleversniperFetcher() extends Job {
+  override def execute(context: JobExecutionContext) = {
+    CleversniperAdapter.run
+  }
+}
 
 object Fetcher {
   val scheduler = StdSchedulerFactory.getDefaultScheduler()

@@ -70,5 +70,4 @@ dependencies {
     }
     runtime (group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.59')
     runtime (group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.59')
-
 }

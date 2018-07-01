@@ -247,7 +247,7 @@ object Accounting {
     }
 
     recordSearchCriteria.userIds match {
-      case Some(userIds) => filters += in("username", userIds: _*)
+      case Some(userIds) => filters += in("username", userIds map {_.replaceAll("\\+", "")} : _*)
       case None => ;
     }
 
@@ -289,7 +289,7 @@ object Accounting {
       }
     }
 
-    exposedRecords sortBy (_.date) toList
+    exposedRecords sortBy (-_.date) toList
   }
 
   def addRecord(bookName: String, record: BookRecord): Book = {

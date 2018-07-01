@@ -220,12 +220,12 @@ object UserManagement {
     val filters = new ListBuffer[conversions.Bson]()
 
     userSearchCriteria.regions match {
-      case Some(regions) => filters += in("region", regions: _*)
+      case Some(regions) => filters += in("region", regions map {_.replaceAll("\\+", "")} : _*)
       case None => ;
     }
 
     userSearchCriteria.userIds match {
-      case Some(userIds) => filters += in("username", userIds: _*)
+      case Some(userIds) => filters += in("username", userIds map {_.replaceAll("\\+", "")} : _*)
       case None => ;
     }
 

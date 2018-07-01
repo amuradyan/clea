@@ -1,5 +1,6 @@
 package adapters.alpinist.adapter
 
+import java.time.LocalDateTime
 import java.util
 
 import accounting.Accounting
@@ -10,17 +11,16 @@ import helpers.Helpers._
 import mongo.CleaMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters.equal
-import org.quartz.{Job, JobExecutionContext}
 import scalaj.http.{Http, HttpOptions}
 
 /**
   * Created by spectrum on Jun, 2018
   */
 case class AlpinistOrder(buy_price: Float,
-                        sell_price: Float,
-                        quantity: Float,
-                        broker: String,
-                        sell_time: Long)
+                         sell_price: Float,
+                         quantity: Float,
+                         broker: String,
+                         sell_time: Long)
 
 case class AlpinistResponse(docs: util.ArrayList[AlpinistOrder] = new util.ArrayList[AlpinistOrder](),
                             bookmark: String = "",
@@ -48,13 +48,8 @@ object AlpinistRecordPointer {
   def apply(pos: String): AlpinistRecordPointer = new AlpinistRecordPointer(new ObjectId().toString, pos)
 }
 
-class AlpinistFetcher extends Job {
-  override def execute(context: JobExecutionContext) = {
-    AlpinistAdapterV2.run
-  }
-}
-
 class AlpinistAdapterV2
+
 object AlpinistAdapterV2 {
   private val logger = Logger[AlpinistAdapterV2]
   private val alpinistRecordPointerCollection = CleaMongoClient.getAlpinistRecordPointerCollection
@@ -89,9 +84,9 @@ object AlpinistAdapterV2 {
 
       deals foreach {
         d => {
-          if(d.broker == "cexio")
+          if (d.broker == "cexio")
             totalProfit = totalProfit + d.quantity * 0.25f * (d.sell_price - d.buy_price)
-          else if(d.broker == "bitfinex")
+          else if (d.broker == "bitfinex")
             totalProfit = totalProfit + d.quantity * 0.2f * (d.sell_price - d.buy_price)
           else
             logger.error(s"Unsupported exchange ${d.broker}")
@@ -132,6 +127,7 @@ object AlpinistAdapterV2 {
       case _: Throwable => logger.error(s"Unable to fetch orders from Alpinist at : $url")
     }
 
+    logger.info(s"Fetched ${dealList.length} deals via AlpinistV2 at ${LocalDateTime.now()}")
     dealList
   }
 

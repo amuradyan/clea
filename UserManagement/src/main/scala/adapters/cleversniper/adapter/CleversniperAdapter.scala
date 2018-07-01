@@ -30,12 +30,6 @@ case class Order(order_number: String,
 case class CleversniperDeal(ID: String, Profit: Float, CreatedAt: String, LastUpdated: String,
                             BuyOrder: Order, SellOrder: Order)
 
-class CleversniperFetcher() extends Job {
-  override def execute(context: JobExecutionContext) = {
-    CleversniperAdapter.run
-  }
-}
-
 class CleversniperAdapter
 object CleversniperAdapter {
   val logger = Logger[CleversniperAdapter]
