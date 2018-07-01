@@ -221,7 +221,7 @@ object Accounting {
         if (users.nonEmpty)
           filters += in("username", users map {
             _.username
-          })
+          }: _*)
       }
       case None => ;
     }
