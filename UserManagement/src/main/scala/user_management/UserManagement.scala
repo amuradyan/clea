@@ -270,9 +270,9 @@ object UserManagement {
   def changePassword(username: String, passwordResetSpec: PasswordResetSpec){
     UserManagement.getByUsername(username) match {
       case Some(u) => {
-        val oldPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.oldPassword)
+        val oldPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.oldPassword).toUpperCase
         if (oldPasswordHash.equals(u.passwordHash)){
-          val newPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.newPassword)
+          val newPasswordHash = get_SHA_512_SecurePassword(passwordResetSpec.newPassword).toUpperCase
           usersCollection.findOneAndUpdate(equal("username", username), set("passwordHash", newPasswordHash)).results()
         }
       }
