@@ -8,8 +8,8 @@ Clea is an umbrella name for a user management and  an accounting modules tailor
 
 The enitites exposed are *token*, *user* and *book*
 
-**host** is 159.65.188.251  
-**port** is 8080  
+**host** is the URL of the host
+**port** is the port listening for requests from Clea
 
 The system comes with a predefined user with the following username and password hash:  
 **username** : *admin*   
